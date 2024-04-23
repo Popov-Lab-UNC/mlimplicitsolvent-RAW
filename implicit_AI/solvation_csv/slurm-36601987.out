@@ -1,0 +1,1 @@
+/var/spool/slurmd/job36601987/slurm_script: line 12: 1789024 Segmentation fault      (core dumped) python qm9_calc.py 133790 133885 787

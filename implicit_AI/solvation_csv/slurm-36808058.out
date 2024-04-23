@@ -1,0 +1,205 @@
+[14:47:30] Explicit valence for atom # 2 C, 5, is greater than permitted
+[14:53:59] Explicit valence for atom # 5 C, 5, is greater than permitted
+[14:54:53] Explicit valence for atom # 4 C, 5, is greater than permitted
+[14:54:53] Explicit valence for atom # 5 C, 5, is greater than permitted
+qm9 Solvation Energy 1
+qm9 Solvation Energy 2
+qm9 Solvation Energy 3
+qm9 Solvation Energy 4
+qm9 Solvation Energy 5
+qm9 Solvation Energy 6
+qm9 Solvation Energy 7
+qm9 Solvation Energy 8
+qm9 Solvation Energy 9
+qm9 Solvation Energy 10
+Solvation Calculation - QM9 Dataset
+gdb9_133791
+[Quantity(value=-53.38303614407778, unit=kilojoule/mole)]
+gdb9_133792
+[Quantity(value=-51.967168264091015, unit=kilojoule/mole)]
+gdb9_133793
+[Quantity(value=-44.99134333850816, unit=kilojoule/mole)]
+gdb9_133794
+[Quantity(value=-46.299393102061, unit=kilojoule/mole)]
+gdb9_133795
+[Quantity(value=-29.07724496803712, unit=kilojoule/mole)]
+gdb9_133796
+[Quantity(value=-4.30595260031987, unit=kilojoule/mole)]
+gdb9_133797
+[Quantity(value=-23.32768271001987, unit=kilojoule/mole)]
+gdb9_133798
+[Quantity(value=-24.28703061444685, unit=kilojoule/mole)]
+gdb9_133799
+[Quantity(value=-14.35543518094346, unit=kilojoule/mole)]
+gdb9_133800
+[Quantity(value=-15.558348145335913, unit=kilojoule/mole)]
+gdb9_133801
+[Quantity(value=-18.665408625733107, unit=kilojoule/mole)]
+gdb9_133802
+[Quantity(value=-35.088799555785954, unit=kilojoule/mole)]
+gdb9_133803
+[Quantity(value=-38.916280954610556, unit=kilojoule/mole)]
+gdb9_133804
+[Quantity(value=-28.82205142453313, unit=kilojoule/mole)]
+gdb9_133805
+[Quantity(value=-39.35793551802635, unit=kilojoule/mole)]
+gdb9_133806
+[Quantity(value=-38.088789376895875, unit=kilojoule/mole)]
+gdb9_133807
+[Quantity(value=-5.770694062113762, unit=kilojoule/mole)]
+gdb9_133808
+[Quantity(value=-22.29253313690424, unit=kilojoule/mole)]
+gdb9_133809
+[Quantity(value=-20.207791194319725, unit=kilojoule/mole)]
+gdb9_133810
+[Quantity(value=-18.94458811171353, unit=kilojoule/mole)]
+gdb9_133811
+[Quantity(value=-20.61175221018493, unit=kilojoule/mole)]
+gdb9_133812
+['gdb9_133812', 'Failed on openmm_solv133811: Unable to make OFFMol from RDMol: RDMol has unspecified stereochemistry. RDMol name: gdb_133812Undefined chiral centers are:\n - Atom C (index 1)\n']
+gdb9_133813
+[Quantity(value=-939.1197241544724, unit=kilojoule/mole)]
+gdb9_133814
+[Quantity(value=-1997.5372132062912, unit=kilojoule/mole)]
+gdb9_133815
+[Quantity(value=-246.86338081141002, unit=kilojoule/mole)]
+gdb9_133816
+[Quantity(value=-2028.890404522419, unit=kilojoule/mole)]
+gdb9_133817
+['gdb9_133817', 'Failed on openmm_solv133816: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133817\' and SMILES \'[H][C]1([H])[C]23[C]([H])([H])[N@+]4([H])[C@@]5([H])[C@@]([H])([C@]24[H])[N@+]1([H])[C@@]35[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133818
+[Quantity(value=-238.3533843755722, unit=kilojoule/mole)]
+gdb9_133819
+[Quantity(value=-19.532594829797745, unit=kilojoule/mole)]
+gdb9_133820
+[Quantity(value=-19.22638015449047, unit=kilojoule/mole)]
+gdb9_133821
+[Quantity(value=-17.754240655340254, unit=kilojoule/mole)]
+gdb9_133822
+[Quantity(value=-240.57286000996828, unit=kilojoule/mole)]
+gdb9_133823
+[Quantity(value=-211.3701351583004, unit=kilojoule/mole)]
+gdb9_133824
+['gdb9_133824', 'Failed on openmm_solv133823: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133824\' and SMILES \'[H][O][C@@]12[C@]3([H])[C@@]4([H])[C@]3([H])[C@]3([H])[C@@]4([H])[C@@]1([H])[C@@]32[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133825
+[Quantity(value=3.8165946304798126, unit=kilojoule/mole)]
+gdb9_133826
+[Quantity(value=-1902.1511757271364, unit=kilojoule/mole)]
+gdb9_133827
+[Quantity(value=-255.23460561037064, unit=kilojoule/mole)]
+gdb9_133828
+[Quantity(value=5.001193524338305, unit=kilojoule/mole)]
+gdb9_133829
+[Quantity(value=-11.7384276650846, unit=kilojoule/mole)]
+gdb9_133830
+[Quantity(value=-858.656837284565, unit=kilojoule/mole)]
+gdb9_133831
+['gdb9_133831', 'Failed on openmm_solv133830: Explicit valence for atom # 2 C, 5, is greater than permitted']
+gdb9_133832
+[Quantity(value=-250.51369851827621, unit=kilojoule/mole)]
+gdb9_133833
+[Quantity(value=-14.217921713367105, unit=kilojoule/mole)]
+gdb9_133834
+[Quantity(value=-28.12167927995324, unit=kilojoule/mole)]
+gdb9_133835
+[Quantity(value=-921.3170815259218, unit=kilojoule/mole)]
+gdb9_133836
+[Quantity(value=3.910304218530655, unit=kilojoule/mole)]
+gdb9_133837
+[Quantity(value=-844.9541418850422, unit=kilojoule/mole)]
+gdb9_133838
+[Quantity(value=-210.81738939881325, unit=kilojoule/mole)]
+gdb9_133839
+[Quantity(value=-15.64598560333252, unit=kilojoule/mole)]
+gdb9_133840
+[Quantity(value=5.557769998908043, unit=kilojoule/mole)]
+gdb9_133841
+[Quantity(value=-257.6904900390655, unit=kilojoule/mole)]
+gdb9_133842
+[Quantity(value=-875.137096080929, unit=kilojoule/mole)]
+gdb9_133843
+[Quantity(value=-213.91990387439728, unit=kilojoule/mole)]
+gdb9_133844
+[Quantity(value=-14.178841471672058, unit=kilojoule/mole)]
+gdb9_133845
+[Quantity(value=-37.80055022239685, unit=kilojoule/mole)]
+gdb9_133846
+[Quantity(value=4.504074107389897, unit=kilojoule/mole)]
+gdb9_133847
+[Quantity(value=-12.286207443103194, unit=kilojoule/mole)]
+gdb9_133848
+[Quantity(value=-853.9114923626184, unit=kilojoule/mole)]
+gdb9_133849
+[Quantity(value=-209.15686695091426, unit=kilojoule/mole)]
+gdb9_133850
+[Quantity(value=-14.0394853875041, unit=kilojoule/mole)]
+gdb9_133851
+[Quantity(value=-13.866032784804702, unit=kilojoule/mole)]
+gdb9_133852
+[Quantity(value=-28.459354296326637, unit=kilojoule/mole)]
+gdb9_133853
+[Quantity(value=-912.3788623660803, unit=kilojoule/mole)]
+gdb9_133854
+[Quantity(value=-904.1082970239222, unit=kilojoule/mole)]
+gdb9_133855
+[Quantity(value=-17.728311896324158, unit=kilojoule/mole)]
+gdb9_133856
+[Quantity(value=-249.0508910343051, unit=kilojoule/mole)]
+gdb9_133857
+['gdb9_133857', 'Failed on openmm_solv133856: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133857\' and SMILES \'[H][C-]1[C]([H])([H])[C@@]23[C@]([H])([C]([H])([H])[H])[C@]2([H])[C@@]2([H])[C@]1([H])[C@]23[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133858
+[Quantity(value=-206.38104082643986, unit=kilojoule/mole)]
+gdb9_133859
+['gdb9_133859', 'Failed on openmm_solv133858: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133859\' and SMILES \'[H][C-]1[C]([H])([H])[C@]23[C@]4([H])[C@@]1([H])[C@]4([H])[C@@]2([H])[N@@+]3([H])[C]([H])([H])[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133860
+['gdb9_133860', 'Failed on openmm_solv133859: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133860\' and SMILES \'[H][O][C@]1([H])[C@]2([H])[C@@]3([H])[C@@]4([H])[C-]([H])[C]([H])([H])[C@@]12[C@]43[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133861
+[Quantity(value=-227.96534460783005, unit=kilojoule/mole)]
+gdb9_133862
+['gdb9_133862', 'Failed on openmm_solv133861: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133862\' and SMILES \'[H][O][C@]1([H])[C]([H])([H])[C@@]23[C]([H])([H])[C@@]([H])([C@@]21[H])[N@+]3([H])[C]([H])([H])[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133863
+['gdb9_133863', 'Failed on openmm_solv133862: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133863\' and SMILES \'[H][C]1([H])[C]2([H])[C]([H])([H])[C]3([H])[C]([H])([H])[C]4([H])[C]([H])([H])[C]1([H])[C]234\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133864
+[Quantity(value=-223.13203884661198, unit=kilojoule/mole)]
+gdb9_133865
+[Quantity(value=-872.667073123157, unit=kilojoule/mole)]
+gdb9_133866
+[Quantity(value=-253.010968208313, unit=kilojoule/mole)]
+gdb9_133867
+['gdb9_133867', 'Failed on openmm_solv133866: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133867\' and SMILES \'[H][C]1([H])[C@@]2([H])[O][C@@]3([H])[C@]4([H])[C]([H])([H])[C@@]3([C]2([H])[H])[C@]14[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133868
+['gdb9_133868', 'Failed on openmm_solv133867: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133868\' and SMILES \'[H][C]1([H])[C@]2([H])[C]([H])([H])[C@]3([H])[C@]4([H])[C]([H])([H])[C@]3([C]2([H])[H])[C@@]14[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133869
+['gdb9_133869', 'Failed on openmm_solv133868: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133869\' and SMILES \'[H][C]1([H])[C@@]2([H])[O][C@@]34[C]([H])([H])[C@]([H])([C@]13[H])[C@@]4([H])[C]2([H])[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133870
+['gdb9_133870', 'Failed on openmm_solv133869: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133870\' and SMILES \'[H][C]1([H])[C@@]2([H])[O][C@@]3([H])[C@]4([H])[C]([H])([H])[C@@]3([O]2)[C@]14[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133871
+['gdb9_133871', 'Failed on openmm_solv133870: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133871\' and SMILES \'[H][C]1([H])[C@@]2([H])[O][C@@]3([H])[C@]4([H])[C]([H])([H])[C@@]13[C@]4([H])[O]2\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133872
+['gdb9_133872', 'Failed on openmm_solv133871: No registered toolkits can provide the capability "assign_partial_charges" for args "()" and kwargs "{\'molecule\': Molecule with name \'gdb_133872\' and SMILES \'[H][C]1([H])[C@@]2([H])[O][C@@]3([H])[C@@]14[C]([H])([H])[C@@]3([H])[N@+]4([H])[C]2([H])[H]\', \'partial_charge_method\': \'am1bcc\', \'use_conformers\': None, \'strict_n_conformers\': False, \'normalize_partial_charges\': True, \'_cls\': <class \'openff.toolkit.topology.molecule.Molecule\'>}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ChargeMethodUnavailableError\'> : partial_charge_method \'am1bcc\' is not available from RDKitToolkitWrapper. Available charge methods are [\'mmff94\', \'gasteiger\'] \n ToolkitWrapper around AmberTools version 22.0 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n ToolkitWrapper around Built-in Toolkit version None <class \'openff.toolkit.utils.exceptions.ChargeMethodUnavailableError\'> : Partial charge method "am1bcc"" is not supported by the Built-in toolkit. Available charge methods are [\'zeros\', \'formal_charge\']\n']
+gdb9_133873
+['gdb9_133873', 'Failed on openmm_solv133872: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133873\' and SMILES \'[H][C]1([H])[C@@]2([H])[C]([H])([H])[C@@]3([H])[C@@]14[C]([H])([H])[N@+]3([H])[C@]4([H])[C]2([H])[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133874
+['gdb9_133874', 'Failed on openmm_solv133873: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133874\' and SMILES \'[H][C]1([H])[C@]2([H])[O][C@]34[C]([H])([H])[N@@+]([H])([C@@]13[H])[C@]4([H])[C]2([H])[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133875
+['gdb9_133875', 'Failed on openmm_solv133874: Explicit valence for atom # 5 C, 5, is greater than permitted']
+gdb9_133876
+['gdb9_133876', 'Failed on openmm_solv133875: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133876\' and SMILES \'[H][C]1([H])[C@@]2([H])[C@@]3([H])[C@@]14[C]([H])([H])[N@@+]1([H])[C@@]([H])([C@]24[H])[C@@]31[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133877
+['gdb9_133877', 'Failed on openmm_solv133876: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133877\' and SMILES \'[H][C]1([H])[C@@]2([H])[C@@]3([H])[C@]2([H])[C@]2([H])[C@@]4([H])[C]([H])([H])[C@@]12[C@]43[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133878
+['gdb9_133878', 'Failed on openmm_solv133877: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133878\' and SMILES \'[H][C]1([H])[C@]2([H])[C@]3([H])[C@]14[C]([H])([H])[C@@]1([H])[C@]3([H])[N@@+]1([H])[C@@]24[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133879
+[Quantity(value=-209.0264393389225, unit=kilojoule/mole)]
+gdb9_133880
+['gdb9_133880', 'Failed on openmm_solv133879: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133880\' and SMILES \'[H][C]1([H])[C@@]2([H])[C@@]3([H])[C@@]14[O][C@]1([H])[C@@]3([H])[C@]1([H])[C@]24[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133881
+['gdb9_133881', 'Failed on openmm_solv133880: Explicit valence for atom # 4 C, 5, is greater than permitted']
+gdb9_133882
+['gdb9_133882', 'Failed on openmm_solv133881: Explicit valence for atom # 5 C, 5, is greater than permitted']
+gdb9_133883
+['gdb9_133883', 'Failed on openmm_solv133882: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133883\' and SMILES \'[H][C]1([H])[C@@]23[C]([H])([H])[N@+]4([H])[C@]2([H])[C@]2([H])[C@]([H])([C@@]34[H])[N@+]12[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133884
+['gdb9_133884', 'Failed on openmm_solv133883: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133884\' and SMILES \'[H][C]1([H])[C@]2([H])[C@@]3([H])[C@]2([H])[C@@]2([H])[C@@]14[C]([H])([H])[N@@+]2([H])[C@@]43[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
+gdb9_133885
+['gdb9_133885', 'Failed on openmm_solv133884: No registered toolkits can provide the capability "generate_conformers" for args "(Molecule with name \'gdb_133885\' and SMILES \'[H][C]1([H])[C@@]23[O][C@]4([H])[C@@]5([H])[C@]4([H])[C@]2([H])[N@+]1([H])[C@@]35[H]\',)" and kwargs "{\'n_conformers\': 10, \'rms_cutoff\': None, \'clear_existing\': True, \'make_carboxylic_acids_cis\': True}"\nAvailable toolkits are: [ToolkitWrapper around The RDKit version 2023.09.6, ToolkitWrapper around AmberTools version 22.0, ToolkitWrapper around Built-in Toolkit version None]\n ToolkitWrapper around The RDKit version 2023.09.6 <class \'openff.toolkit.utils.exceptions.ConformerGenerationError\'> : RDKit conformer generation failed.\n']
