@@ -1,3 +1,5 @@
+from datasets.md_batch import MDData
+import torch
 from torch.utils.data import Dataset
 import h5py
 import os
@@ -21,7 +23,18 @@ class BigBindSolvDataset(Dataset):
 
         group = self.file[self.keys[index]]
         q = group["charges"][:]
-        positions = group["positions"][:]
+        all_positions = group["positions"][:]
         atomic_numbers = group["atomic_numbers"][:]
-        forces = group["solv_forces"][:]
-        return q, positions, atomic_numbers, forces
+        all_forces = group["solv_forces"][:]
+
+        # choose a random frame from the simulation
+        frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
+        positions = all_positions[frame_idx]
+        forces = all_forces[frame_idx]
+
+        return MDData(
+            charges=torch.tensor(q, dtype=torch.float32),
+            positions=torch.tensor(positions, dtype=torch.float32),
+            atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
+            forces=torch.tensor(forces, dtype=torch.float32)
+        )
