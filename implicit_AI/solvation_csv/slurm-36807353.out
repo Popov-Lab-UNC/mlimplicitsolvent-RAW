@@ -1,2 +1,0 @@
-corrupted size vs. prev_size
-/var/spool/slurmd/job36807353/slurm_script: line 12: 829133 Aborted                 (core dumped) python qm9_calc.py 133790 133885 787

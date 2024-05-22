@@ -1,2 +1,0 @@
-munmap_chunk(): invalid pointer
-/var/spool/slurmd/job36600899/slurm_script: line 12: 2650150 Aborted                 (core dumped) python qm9_calc.py 133790 133885 787
