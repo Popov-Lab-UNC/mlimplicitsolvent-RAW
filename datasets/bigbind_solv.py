@@ -31,9 +31,18 @@ class BigBindSolvDataset(Dataset):
         positions = all_positions[frame_idx]
         forces = all_forces[frame_idx]
 
+        lambda_sterics = group["lambda_sterics"][frame_idx]
+        lambda_electrostatics = group["lambda_electrostatics"][frame_idx]
+        sterics_derivative = group["sterics_derivatives"][frame_idx]
+        electrostatics_derivative = group["electrostatics_derivatives"][frame_idx]
+
         return MDData(
             charges=torch.tensor(q, dtype=torch.float32),
             positions=torch.tensor(positions, dtype=torch.float32),
             atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
-            forces=torch.tensor(forces, dtype=torch.float32)
+            forces=torch.tensor(forces, dtype=torch.float32),
+            lambda_sterics=torch.tensor(lambda_sterics, dtype=torch.float32),
+            lambda_electrostatics=torch.tensor(lambda_electrostatics, dtype=torch.float32),
+            sterics_derivative=torch.tensor(sterics_derivative, dtype=torch.float32),
+            electrostatics_derivative=torch.tensor(electrostatics_derivative, dtype=torch.float32)
         )
