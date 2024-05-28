@@ -26,6 +26,12 @@ class BigBindSolvDataset(Dataset):
         all_positions = group["positions"][:]
         atomic_numbers = group["atomic_numbers"][:]
         all_forces = group["solv_forces"][:]
+        lambdaelec= group["lambda_electrostatics"][:]
+        lambdaster= group["lambda_sterics"][:]
+        dSterics = group["sterics_derivatives"][:]
+        dElec= group["electrostatics_derivatives"][:]
+
+        print(dElec)
 
         # choose a random frame from the simulation
         frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
@@ -36,5 +42,9 @@ class BigBindSolvDataset(Dataset):
             charges=torch.tensor(q, dtype=torch.float32),
             positions=torch.tensor(positions, dtype=torch.float32),
             atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
-            forces=torch.tensor(forces, dtype=torch.float32)
+            forces=torch.tensor(forces, dtype=torch.float32),
+            lambdaelec = torch.tensor(lambdaelec, dtype=torch.float32),
+            lambdaster = torch.tensor(lambdaster, dtype=torch.float32),
+            dSterics = torch.tensor(dSterics, dtype=torch.float32),
+            dElec = torch.tensor(dElec, dtype=torch.float32)
         )
