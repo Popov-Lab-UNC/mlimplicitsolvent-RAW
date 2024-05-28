@@ -14,6 +14,11 @@ class MDData(ter.Batchable):
     atomic_numbers: torch.Tensor
     forces: torch.Tensor
 
+    lambda_sterics: torch.Tensor
+    lambda_electrostatics: torch.Tensor
+    sterics_derivative: torch.Tensor
+    electrostatics_derivative: torch.Tensor
+
     @staticmethod
     def get_batch_type():
         return MDBatch
@@ -28,7 +33,13 @@ class MDBatch(ter.BatchBase[MDData]):
 
         # concatenate all the tensors
         for key in items[0].__dict__.keys():
-            setattr(self, key, torch.cat([getattr(item, key) for item in items], 0))
+            first = getattr(items[0], key)
+            if len(first.shape) == 0:
+                # collate scalars like we would in normal batches
+                collated = torch.stack([getattr(item, key) for item in items])
+            else:
+                collated = torch.cat([getattr(item, key) for item in items], 0)
+            setattr(self, key, collated)
 
         # create batch tensor
         self.batch = torch.zeros(self.positions.shape[0], dtype=torch.long)
