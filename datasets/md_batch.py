@@ -13,10 +13,6 @@ class MDData(ter.Batchable):
     charges: torch.Tensor
     atomic_numbers: torch.Tensor
     forces: torch.Tensor
-    lambdaelec: torch.Tensor
-    lambdaster: torch.Tensor
-    dSterics: torch.Tensor
-    dElec: torch.Tensor
 
     lambda_sterics: torch.Tensor
     lambda_electrostatics: torch.Tensor

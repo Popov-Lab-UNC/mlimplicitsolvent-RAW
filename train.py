@@ -47,7 +47,7 @@ def train():
         for batches in tqdm(train_loader):
             y_true = batches.forces
             print(batches)
-            y, neg_dy = model(z=batches.atomic_numbers, pos= batches.positions, batch= batches.batch, lambdaelec = batches.lambdaelec, lambdaster = batches.lambdaster)
+            y, neg_dy = model(z=batches.atomic_numbers, pos= batches.positions, batch= batches.batch, lambdaelec = batches.lambda_electrostatics, lambdaster = batches.lambda_sterics)
             loss = LambdaLoss(y=y, c_loss = c_loss, batches=batches)
             optimizer.zero_grad()
             loss.backward()
@@ -72,7 +72,7 @@ def train():
     print("Finished")
 
 
-    torch.save(model.state_dict(), 'model.pt')
+    torch.save(model.state_dict(), 'model-2.pt')
     
 
 

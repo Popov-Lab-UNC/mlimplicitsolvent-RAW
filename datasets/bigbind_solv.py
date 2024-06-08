@@ -26,6 +26,7 @@ class BigBindSolvDataset(Dataset):
         all_positions = group["positions"][:]
         atomic_numbers = group["atomic_numbers"][:]
         all_forces = group["solv_forces"][:]
+
         # choose a random frame from the simulation
         frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
         positions = all_positions[frame_idx]
