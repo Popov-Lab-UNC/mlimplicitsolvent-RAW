@@ -12,10 +12,12 @@ from torchmdnet.models.tensornet import TensorNet
 from tqdm import tqdm
 from datasets.bigbind_solv import BigBindSolvDataset
 from torchmdnet.models.utils import scatter
+from torchmdnet.extensions import is_current_stream_capturing
 
 
 
 #Parameters to change
+CONNECT_WANDB: bool = False
 WANDB_PROJ_NAME: str = "ML Implicit Solvent"
 WANDB_GRAPH_NAME: str = ''
 SLURMM_OUTPUT_TITLE_NAME: str = ''
@@ -30,9 +32,6 @@ CLIP: float = 1
 INITIAL_LEARNING_RATE: float = 1e-4
 MINIMUM_LR: float = 1e-15
 EPOCHS: int = 200
-
-
-
 
 
 
@@ -99,8 +98,8 @@ class ISAI(nn.Module):
 
 
         if self.derivative:
-            negdy, dSterics, dElectrostatics = self.derivativeCalc(contraint = True, y=y, pos=pos,
-                                lamba_electrostatics= lambda_electrostatics, 
+            negdy, dSterics, dElectrostatics = self.derivativeCalc(constraint = True, y=y, pos=pos,
+                                lambda_electrostatics= lambda_electrostatics, 
                                 lambda_sterics=lambda_sterics)
             return negdy, dSterics, dElectrostatics
         else:
@@ -115,10 +114,10 @@ class LambdaScalar(nn.Module):
         self.layers = nn.Sequential()
 
         for _ in range(integration_layers):
-            self.layers.append(nn.Linear(hidden_channels + 2, hidden_channels + 2))
-            self.layers.append(nn.BatchNorm2d(hidden_channels+2, hidden_channels+2))
-            self.layers.append(nn.ReLU)
-        self.layers.append(nn.Linear(hidden_channels + 2, 1))
+            self.layers.add_module('linear', nn.Linear(hidden_channels + 2, hidden_channels + 2))
+            self.layers.add_module('batch_norm', nn.BatchNorm1d(hidden_channels + 2))
+            self.layers.add_module('relu', nn.ReLU())
+            self.layers.add_module('final_linear', nn.Linear(hidden_channels + 2, 1))
 
     def forward(self, y, lambda_sterics, lambda_electrostatics, batch):
         
@@ -127,7 +126,11 @@ class LambdaScalar(nn.Module):
         y = cat((y, lambda_electrostatics, lambda_sterics),dim=1)
 
         y = self.layers(y)
-        return scatter(y, batch, dim=0, dim_size=0)
+        is_capturing = y.is_cuda and is_current_stream_capturing()
+        if not y.is_cuda or not is_capturing:
+            self.dim_size = int(batch.max().item() + 1)
+        
+        return scatter(y, batch, dim=0, dim_size=self.dim_size)
     
 
 class EarlyStopper:
@@ -150,7 +153,7 @@ class EarlyStopper:
 
 
 def train():
-    device = device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_dataset = BigBindSolvDataset("train")
     train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=True)
     val_dataset = BigBindSolvDataset("val")
@@ -204,7 +207,9 @@ def train():
             torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
             optimizer.step()
             scheduler.step(loss.item())
-            wandb.log({WANDB_GRAPH_NAME: loss.item()})
+
+            if(CONNECT_WANDB):
+                wandb.log({WANDB_GRAPH_NAME: loss.item()})
 
             running_loss += loss.item()
             running_lossdy += lossdy.item()
@@ -213,7 +218,7 @@ def train():
        
             # Clear cache and garbage collect to free memory
             del lambdaElecGrad, lambdaStericsGrad, lambdaElecTrue, lambdaStericsTrue, y_true
-            del y, negdy, dSterics, dElectrostatics, loss, lossdy, loss_elec, loss_ster
+            del negdy, dSterics, dElectrostatics, loss, lossdy, loss_elec, loss_ster
             torch.cuda.empty_cache()
             gc.collect()
 
@@ -221,18 +226,25 @@ def train():
         train_lossdy = running_lossdy / len(train_loader)
         train_loss_elec = running_loss_elec / len(train_loader)
         train_loss_ster = running_loss_ster / len(train_loader)
+
+        
         
         print(f"Training Loss: {train_loss}")
         print(f"Training Lossdy: {train_lossdy}")
         print(f"Training Loss_elec: {train_loss_elec}")
         print(f"Training Loss_ster: {train_loss_ster}")
 
+        if(early_stopper.early_stop(train_loss)):
+            print(f"Early Stopped, loss not decreasing")
+            break
+
     name = random.randint(-math.inf, math.inf)
-    print(f"model_name: name")    
+    print(f"model_name: {name}")    
     torch.save(model.state_dict(), f'{name}.pt')            
 
 if __name__ == "__main__":
-    wandb.init(project = WANDB_PROJ_NAME)
+    if(CONNECT_WANDB):
+        wandb.init(project = WANDB_PROJ_NAME)
     print(SLURMM_OUTPUT_TITLE_NAME)
 
     train()
