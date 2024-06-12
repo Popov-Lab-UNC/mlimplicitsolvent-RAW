@@ -9,12 +9,13 @@ class BigBindSolvDataset(Dataset):
     """ This dataset returns the charges, positions, atomic numbers,
     and forces of a frame in the bigbind_solv dataset."""
 
-    def __init__(self, split):
+    def __init__(self, split, frame_index):
         """ Split is either 'train', 'val', or 'test'."""
         file_path = os.path.join(CONFIG.bigbind_solv_dir, split + ".h5")
         self.file = h5py.File(file_path, "r")
         self.keys = list(self.file.keys())
         self.length = len(self.keys)
+        self.frame_index = frame_index
         
     def __len__(self):
         return self.length
@@ -28,7 +29,11 @@ class BigBindSolvDataset(Dataset):
         all_forces = group["solv_forces"][:]
 
         # choose a random frame from the simulation
-        frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
+        if self.frame_index is None:
+            frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
+        else:
+            frame_idx = self.frame_index
+
         positions = all_positions[frame_idx]
         forces = all_forces[frame_idx]
 

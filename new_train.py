@@ -84,7 +84,7 @@ def train():
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-             # Clear cache and garbage collect to free memory
+            # Clear cache and garbage collect to free memory
             torch.cuda.empty_cache()
             gc.collect()
         train_loss = running_loss / len(train_loader)
