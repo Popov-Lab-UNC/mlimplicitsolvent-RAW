@@ -6,13 +6,22 @@ from datasets.bigbind_solv import BigBindSolvDataset
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torchmdnet.models.model import TorchMD_Net
 from torchmdnet.models.tensornet import TensorNet
-from matplotlib.pyplot import plt
-#from torchmdnet.models.model import create_model
+from torchmdnet.models.output_modules import Scalar 
 import gc
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+from datasets.TensorNetLambda import LambdaLoss
+import random 
+import math
+import wandb
 
+wandb.init(
+    project = "ML Implicit Solvent"
+)
+
+
+
+print("LAYERS ADDED - WANDB LOSS - BATCHNORM - LEARNING RATE: 1E-4 + SCHEDULER - BATCH SIZE-4 - GRAD CLIPPED - 1")
 # Using Class to introduce early stopping criterion to avoid overfitting of network
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0.001):
@@ -32,30 +41,46 @@ class EarlyStopper:
         return False
 
 def train():
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # Initializing the dataset and dataloader. Using BigBindSolvent data as reference.
     train_dataset = BigBindSolvDataset("train")
-    train_loader=ter.DataLoader(train_dataset,batch_size=10,shuffle=True)
+    train_loader=ter.DataLoader(train_dataset, batch_size = 4, shuffle=True)
     val_dataset = BigBindSolvDataset("val")
-    val_loader = ter.DataLoader(val_dataset, batch_size=10, shuffle=True)
+    val_loader = ter.DataLoader(val_dataset, batch_size = 4, shuffle=True)
     test_dataset = BigBindSolvDataset("test")
-    test_loader = ter.DataLoader(test_dataset, batch_size=10, shuffle=True)
+    test_loader = ter.DataLoader(test_dataset, batch_size = 4, shuffle=True)
+
 
     # Initializing the modified TensorNet model, loss function, and optimizer
-    model = TensorNet(
-        hidden_channels=128,
-        num_layers=2,
-        num_rbf=32,
-        rbf_type="expnorm",
-        trainable_rbf=True,
-        activation='silu',
-        equivariance_invariance_group='O(3)',
-        cutoff_lower=0.0, # Default 
-        cutoff_upper=4.5,  # Default  
-        max_num_neighbors= 100 #Default is 64    
+    model = TorchMD_Net(
+                representation_model= 
+                    TensorNet(
+                        hidden_channels=128,
+                        num_layers=2,
+                        num_rbf=32,
+                        rbf_type="expnorm",
+                        trainable_rbf=True,
+                        activation='ssp',
+                        equivariance_invariance_group='O(3)',
+                        cutoff_lower=0.0, # Default 
+                        cutoff_upper=4.5,  # Default  
+                        max_num_neighbors= 120 #Default is 64    
+                    ), 
+                output_model = 
+                    Scalar(hidden_channels=128,
+                           num_layers = 2), 
+                derivative = True,
+                
     )
-    criterion = nn.MSELoss()  # Example loss function
-    optimizer = optim.AdamW(model.parameters(), lr=1e3)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+       
+    criterion = nn.MSELoss() 
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1,
+                                                 patience=10, threshold=1e3, threshold_mode='abs',
+                                                 cooldown=0, min_lr=1e-15, eps=1e-20)
+    
     model.to(device)
     
 
@@ -65,84 +90,76 @@ def train():
     val_losses = []
 
     # Training loop
-    for epoch in range(3):
+    for epoch in range(200):
         model.train()
         print(f"Current Epoch: {epoch}")
+        print("Training Now: ")
         running_loss = 0.0
+        running_lossdy = 0.0
+        running_loss_elec = 0.0
+        running_loss_ster = 0.0        
         for batch in tqdm(train_loader):
-            true_forces = batch.forces.to(device) ## True value of forces
             optimizer.zero_grad()
-            try:
-                # Forward pass
-                force = model(batch.atomic_numbers.to(device), batch.positions.to(device), batch.batch.to(device), box=None)
-            except Exception as e:
-                print(f"Error during model forward pass: {e}")
-                #print(f"atomic_numbers type: {type(atomic_numbers)}, positions type: {type(positions)}, batch type: {type(batch_indices)}, box type: {type(box)}, charges type: {type(charges)}")
-                raise
-            forces_pred=force[3].requires_grad_()
-            loss = criterion(forces_pred, true_forces)
+            
+            # Forward pass
+            lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
+            lambdaStericsGrad = batch.lambda_sterics.requires_grad_().to(device)
+            lambdaElecTrue = batch.electrostatics_derivative.requires_grad_().to(device)
+            lambdaStericsTrue = batch.sterics_derivative.requires_grad_().to(device)
+            y_true = batch.forces.requires_grad_().to(device)
+
+            y, negdy, dSterics, dElectrostatics = model(
+                z=batch.atomic_numbers.to(device),
+                pos=batch.positions.to(device),
+                batch=batch.batch.to(device),
+                lambda_electrostatics=lambdaElecGrad,
+                lambda_sterics=lambdaStericsGrad,
+                box=None,
+                Training = True
+            )
+
+            lossdy = criterion(negdy, y_true) 
+            loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
+            loss_ster = criterion(dSterics, lambdaElecTrue)
+            loss = lossdy + loss_elec + loss_ster
+                    
             loss.backward()
+            clip = 1
+            torch.nn.utils.clip_grad_norm_(model.parameters(),clip)
             optimizer.step()
+            scheduler.step(loss.item())
+            wandb.log({"V2 - loss(E-4 + SCHEDULER) - BS4": loss.item()})
+
             running_loss += loss.item()
+<<<<<<< HEAD
+            running_lossdy += lossdy.item()
+            running_loss_elec += loss_elec.item()
+            running_loss_ster += loss_ster.item()
+
             # Clear cache and garbage collect to free memory
+            del lambdaElecGrad, lambdaStericsGrad, lambdaElecTrue, lambdaStericsTrue, y_true
+            del y, negdy, dSterics, dElectrostatics, loss, lossdy, loss_elec, loss_ster
+=======
+            # Clear cache and garbage collect to free memory
+>>>>>>> 4f240b8dc8478d47ea302fc63125cc2321d9b6c8
             torch.cuda.empty_cache()
             gc.collect()
+        
         train_loss = running_loss / len(train_loader)
+        train_lossdy = running_lossdy / len(train_loader)
+        train_loss_elec = running_loss_elec / len(train_loader)
+        train_loss_ster = running_loss_ster / len(train_loader)
         train_losses.append(train_loss)
+        
         print(f"Training Loss: {train_loss}")
-        print(f"Training Loss is: {running_loss / len(train_loader)}")
-        #Validation starts
-        model.eval()
-        val_loss=0
-        with torch.no_grad():
-            for batch in val_loader:
-                true_forces = batch.forces.to(device)
-                try:
-                    force = model(batch.atomic_numbers.to(device), batch.positions.to(device), batch.batch.to(device), box=None)
-                except Exception as e:
-                    print(f"Error during model forward pass: {e}")
-                    #print(f"atomic_numbers type: {type(atomic_numbers)}, positions type: {type(positions)}, batch type: {type(batch_indices)}, box type: {type(box)}, charges type: {type(charges)}")
-                    raise
-                forces_pred=force[3].requires_grad_()
-                #print(f"Shape of forces_pred: {forces_pred.shape}")
-                #print(f"Shape of true_forces: {true_forces.shape}")
+        print(f"Training Lossdy: {train_lossdy}")
+        print(f"Training Loss_elec: {train_loss_elec}")
+        print(f"Training Loss_ster: {train_loss_ster}")
 
-                loss = criterion(forces_pred, true_forces)
-                val_loss += loss.item()
-                torch.cuda.empty_cache()
-                gc.collect()
-            print(f"Validation Loss is: {val_loss / len(val_loader)}")
-            
-        val_loss /= len(val_loader)
-        val_losses.append(val_loss)
-        print(f"Validation Loss: {val_loss}")
-
-        # Early stopping check
-        if early_stopper.early_stop(val_loss):
-            print(f"Early stopping at epoch {epoch}")
-            break
-
-    plot_loss(train_losses, val_losses, epoch)
-    print("Validation is complete.")
-    torch.save(model.state_dict(),"validated_model.pt")
-    torch.cuda.empty_cache() 
-
-# Plotting the graph for Train_loss vs Epoch and Val_loss vs Epoch
-# Also, plotting early_stopping epoch criterion.
-def plot_loss(train_losses, val_losses, early_stopping_epoch):
-    epochs = range(1, len(train_losses) + 1)
-    plt.figure(figsize=(10, 5))
-    plt.plot(epochs, train_losses, 'b', label='Training loss')
-    plt.plot(epochs, val_losses, 'r', label='Validation loss')
-    plt.axvline(early_stopping_epoch, color='g', linestyle='--', label='Early Stopping')
-    plt.xlabel('Epochs')
-    plt.ylabel('Losses')
-    plt.legend()
-    plt.title('Training and Validation Loss')
-    plt.savefig(filename)
-    plt.close()
-
-
+    name = random.randint(-math.inf, math.inf)
+    print(f"model_name: name")    
+    torch.save(model.state_dict(), f'{name}.pt')
 if __name__ == "__main__":
     train()
+
 
