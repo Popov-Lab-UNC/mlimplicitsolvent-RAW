@@ -227,7 +227,7 @@ def train():
             lambdaStericsTrue = batch.sterics_derivative.to(device)
             y_true = batch.forces.to(device)
 
-            true_ys.append(y_true.detach().numpy().flatten())
+            true_ys.append(y_true.detach().cpu().numpy().flatten())
             
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
@@ -236,7 +236,7 @@ def train():
                                                     lambda_sterics=lambdaStericsGrad,
             
                                                     disable_lambdas = DISABLE_LAMBDA)
-            predicted_ys.append(negdy.detach().numpy().flatten())
+            predicted_ys.append(negdy.detach().cpu().numpy().flatten())
             
             if not DISABLE_LAMBDA: 
                 lossdy = criterion(negdy, y_true)
@@ -315,7 +315,7 @@ def train():
             lambdaStericsTrue = batch.sterics_derivative.to(device)
             y_true = batch.forces.to(device)
 
-            true_ys.append(y_true.detach().numpy().flatten())
+            true_ys.append(y_true.detach().cpu().numpy().flatten())
 
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
@@ -324,7 +324,7 @@ def train():
                                                     lambda_sterics=lambdaStericsGrad,
             
                                                     disable_lambdas = DISABLE_LAMBDA)
-            predicted_ys.append(negdy.detach().numpy().flatten())
+            predicted_ys.append(negdy.detach().cpu().numpy().flatten())
 
 
             
