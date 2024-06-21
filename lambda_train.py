@@ -1,3 +1,5 @@
+#AI model of Solvation using TorchMDNet TensorNet
+#Need a better name than ISAI
 import torch.nn as nn
 from torch import Tensor, cat, ones_like, device
 import torch
@@ -13,7 +15,9 @@ from tqdm import tqdm
 from datasets.bigbind_solv import BigBindSolvDataset
 from torchmdnet.models.utils import scatter
 from torchmdnet.extensions import is_current_stream_capturing
-
+import numpy as np
+from sklearn.metrics import r2_score
+from torch.nn.utils.rnn import pad_sequence
 
 
 
@@ -30,18 +34,22 @@ MAX_NUM_NEIGHBORS: int = 120
 BATCH_SIZE: int = 4
 WEIGHT_DECAY: float = 1e-2
 CLIP: float = 1
-INITIAL_LEARNING_RATE: float = 1e-7
+INITIAL_LEARNING_RATE: float = 1e-4
 SCHEDULER: bool = True
 MINIMUM_LR: float = 1e-15
-EPOCHS: int = 200
-
+EPOCHS: int = 1000
+EARLY_STOP = True
 
 CONNECT_WANDB: bool = False
 WANDB_PROJ_NAME: str = "ML Implicit Solvent"
-WANDB_GRAPH_NAME: str = f'LAMBDA TRAIN - SCHEDULER {INITIAL_LEARNING_RATE} BS{BATCH_SIZE} GS{CLIP}'
+WANDB_GRAPH_NAME: str = f'2.0 STATIC FRAME IDX w/ VALIDATION- SCHEDULER {INITIAL_LEARNING_RATE} BS{BATCH_SIZE} GS{CLIP}'
 SLURMM_OUTPUT_TITLE_NAME: str = WANDB_GRAPH_NAME
 
 
+VALIDATION = True
+
+
+#Main class 
 class ISAI(nn.Module):
 
     def __init__(self, hidden_channels, 
@@ -85,7 +93,7 @@ class ISAI(nn.Module):
                         retain_graph=True)[0]
         assert dElectrostatics is not None, "Autograd returned None for the force prediction."
 
-        return -dy, -dSterics, -dElectrostatics 
+        return -dy, dSterics, dElectrostatics 
 
         
     def forward(self, 
@@ -111,7 +119,7 @@ class ISAI(nn.Module):
         else:
             return y
 
-        
+#Hidden Channel Convergence Model         
 class LambdaScalar(nn.Module):
     
     def __init__(self, integration_layers, hidden_channels):
@@ -173,8 +181,10 @@ class EarlyStopper:
 
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = BigBindSolvDataset("train")
+    train_dataset = BigBindSolvDataset("train", frame_index=0)
     train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=True)
+    val_dataset = BigBindSolvDataset("val", frame_index=0)
+    val_loader = ter.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     model = ISAI(hidden_channels=HIDDEN_CHANNELS,
                  tensor_net_layers=TENSOR_NET_LAYERS,
@@ -190,6 +200,7 @@ def train():
                                                     cooldown=0, min_lr=MINIMUM_LR, eps=1e-20)
     model.to(device)
     model.train()
+
     #If changing LR twice does not decrease.
     early_stopper = EarlyStopper(patience=10, min_delta=1)
 
@@ -204,34 +215,41 @@ def train():
         running_loss_elec = 0.0
         running_loss_ster = 0.0
 
+        true_ys = []
+        predicted_ys = []
+        counter = 0
+
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
             lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
             lambdaStericsGrad = batch.lambda_sterics.requires_grad_().to(device)
-            lambdaElecTrue = batch.electrostatics_derivative.requires_grad_().to(device)
-            lambdaStericsTrue = batch.sterics_derivative.requires_grad_().to(device)
-            y_true = batch.forces.requires_grad_().to(device)
+            lambdaElecTrue = batch.electrostatics_derivative.to(device)
+            lambdaStericsTrue = batch.sterics_derivative.to(device)
+            y_true = batch.forces.to(device)
 
+            true_ys.append(y_true.detach().numpy().flatten())
+            
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
                                                     batch=batch.batch.to(device),
                                                     lambda_electrostatics=lambdaElecGrad,
                                                     lambda_sterics=lambdaStericsGrad,
+            
                                                     disable_lambdas = DISABLE_LAMBDA)
-            lossdy = criterion(negdy, y_true)
-            loss = lossdy
+            predicted_ys.append(negdy.detach().numpy().flatten())
+            
             if not DISABLE_LAMBDA: 
+                lossdy = criterion(negdy, y_true)
                 loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
                 loss_ster = criterion(dSterics, lambdaElecTrue)
-                loss += loss_elec + loss_ster
+                loss = lossdy + loss_elec + loss_ster
                 
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
             optimizer.step()
 
-            if(CONNECT_WANDB):
-                wandb.log({WANDB_GRAPH_NAME: loss.item()})
+
 
             running_loss += loss.item()
             running_lossdy += lossdy.item()
@@ -258,26 +276,119 @@ def train():
             torch.cuda.empty_cache()
             gc.collect()
 
+        
+        
+        true_ys = np.concatenate(true_ys)
+        predicted_ys = np.concatenate(predicted_ys)
+
+        train_r2 = r2_score(true_ys, predicted_ys)
+        print(f"R2: {train_r2}")
+
         train_loss = running_loss / len(train_loader)
         train_lossdy = running_lossdy / len(train_loader)
         train_loss_elec = running_loss_elec / len(train_loader)
         train_loss_ster = running_loss_ster / len(train_loader)
 
-        if(SCHEDULER):
-                scheduler.step(train_loss)
+
+        
         
         print(f"Training Loss: {train_loss}")
         print(f"Training Lossdy: {train_lossdy}")
         print(f"Training Loss_elec: {train_loss_elec}")
-        print(f"Training Loss_ster: {train_loss_ster}")     
+        print(f"Training Loss_ster: {train_loss_ster}")
 
-        if(early_stopper.early_stop(train_loss)):
-            print(f"Early Stopped, loss not decreasing")
-            break
+
+        print("Validation Now:")
+        model.eval()
+        running_loss = 0.0
+        running_lossdy = 0.0
+        running_loss_elec = 0.0
+        running_loss_ster = 0.0
+        true_ys = []
+        predicted_ys = []
+        count = 0 
+        for batch in val_loader:
+            optimizer.zero_grad()
+            lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
+            lambdaStericsGrad = batch.lambda_sterics.requires_grad_().to(device)
+            lambdaElecTrue = batch.electrostatics_derivative.to(device)
+            lambdaStericsTrue = batch.sterics_derivative.to(device)
+            y_true = batch.forces.to(device)
+
+            true_ys.append(y_true.detach().numpy().flatten())
+
+            negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
+                                                    pos=batch.positions.to(device),
+                                                    batch=batch.batch.to(device),
+                                                    lambda_electrostatics=lambdaElecGrad,
+                                                    lambda_sterics=lambdaStericsGrad,
+            
+                                                    disable_lambdas = DISABLE_LAMBDA)
+            predicted_ys.append(negdy.detach().numpy().flatten())
+
+
+            
+            if not DISABLE_LAMBDA: 
+                lossdy = criterion(negdy, y_true)
+                loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
+                loss_ster = criterion(dSterics, lambdaElecTrue)
+                loss = lossdy + loss_elec + loss_ster
+
+            if(CONNECT_WANDB):
+                wandb.log({"Validation Loss": loss.item()})
+
+            running_loss += loss.item()
+            running_lossdy += lossdy.item()
+            if not DISABLE_LAMBDA: 
+                running_loss_elec += loss_elec.item()
+                running_loss_ster += loss_ster.item()
+
+            # Clear cache and garbage collect to free memory
+            del lambdaElecGrad, lambdaStericsGrad, lambdaElecTrue, lambdaStericsTrue, y_true
+            del negdy, dSterics, dElectrostatics, loss, lossdy 
+            
+            if not DISABLE_LAMBDA:
+                del loss_elec, loss_ster
+
+            torch.cuda.empty_cache()
+            gc.collect()
+            
+        val_loss = running_loss / len(val_loader)
+        val_lossdy = running_lossdy / len(val_loader)
+        val_loss_elec = running_loss_elec / len(val_loader)
+        val_loss_ster = running_loss_ster / len(val_loader)
+
+        val_r2 = r2_score(true_ys, predicted_ys)
+        print(f"R2: {val_r2}")
+
+        print(f"Validation Loss: {val_loss}")
+        print(f"Validation Lossdy: {val_lossdy}")
+        print(f"Validation Loss_elec: {val_loss_elec}")
+        print(f"Validation Loss_ster: {val_loss_ster}")
+
+        
+        if(CONNECT_WANDB):
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS": train_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2": train_r2})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS": val_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2": val_r2})
+
+        if(SCHEDULER):
+                scheduler.step(val_loss)     
+        if EARLY_STOP: 
+            if(early_stopper.early_stop(val_loss)):
+                print(f"Early Stopped, loss not decreasing")
+                break
+        
+
+
 
     name = random.randint(-1e6, 1e6)
     print(f"model_name: {name}")    
-    torch.save(model.state_dict(), f'{name}.pt')            
+    torch.save(model.state_dict(), f'{name}.pt')
+
+
+           
 
 if __name__ == "__main__":
     if(CONNECT_WANDB):

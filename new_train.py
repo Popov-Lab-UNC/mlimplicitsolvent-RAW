@@ -131,6 +131,7 @@ def train():
             wandb.log({"V2 - loss(E-4 + SCHEDULER) - BS4": loss.item()})
 
             running_loss += loss.item()
+<<<<<<< HEAD
             running_lossdy += lossdy.item()
             running_loss_elec += loss_elec.item()
             running_loss_ster += loss_ster.item()
@@ -138,6 +139,9 @@ def train():
             # Clear cache and garbage collect to free memory
             del lambdaElecGrad, lambdaStericsGrad, lambdaElecTrue, lambdaStericsTrue, y_true
             del y, negdy, dSterics, dElectrostatics, loss, lossdy, loss_elec, loss_ster
+=======
+            # Clear cache and garbage collect to free memory
+>>>>>>> 4f240b8dc8478d47ea302fc63125cc2321d9b6c8
             torch.cuda.empty_cache()
             gc.collect()
         
