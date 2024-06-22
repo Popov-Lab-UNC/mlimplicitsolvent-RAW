@@ -27,12 +27,12 @@ MAX_LOSS: int = 1000000
 DISABLE_LAMBDA: bool = False # LOSS VALIDATION DOES NOT WORK WITH THIS DISABLED
 
 HIDDEN_CHANNELS: int = 128
-TENSOR_NET_LAYERS: int = 2
-LAMBDA_INTEGRATION_LAYERS: int = 3
+TENSOR_NET_LAYERS: int = 5
+LAMBDA_INTEGRATION_LAYERS: int = 5
 MAX_NUM_NEIGHBORS: int = 120
 
-BATCH_SIZE: int = 4
-WEIGHT_DECAY: float = 1e-2
+BATCH_SIZE: int = 8
+WEIGHT_DECAY: float = 1e-6
 CLIP: float = 1
 INITIAL_LEARNING_RATE: float = 1e-4
 SCHEDULER: bool = True
@@ -40,9 +40,9 @@ MINIMUM_LR: float = 1e-15
 EPOCHS: int = 1000
 EARLY_STOP = True
 
-CONNECT_WANDB: bool = False
+CONNECT_WANDB: bool = True
 WANDB_PROJ_NAME: str = "ML Implicit Solvent"
-WANDB_GRAPH_NAME: str = f'2.0 STATIC FRAME IDX w/ VALIDATION- SCHEDULER {INITIAL_LEARNING_RATE} BS{BATCH_SIZE} GS{CLIP}'
+WANDB_GRAPH_NAME: str = f'4.2 STATIC FRAME IDX w/ VALIDATION - 5x5 LAYERS - SCHEDULER {INITIAL_LEARNING_RATE} BS{BATCH_SIZE} GS{CLIP}'
 SLURMM_OUTPUT_TITLE_NAME: str = WANDB_GRAPH_NAME
 
 
@@ -196,16 +196,16 @@ def train():
 
     if(SCHEDULER):
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', factor=0.1, 
-                                                    patience=10, threshold=1e-3, threshold_mode='abs',
-                                                    cooldown=0, min_lr=MINIMUM_LR, eps=1e-20)
+                                                    patience=3, threshold=1e-3, threshold_mode='abs',
+                                                    cooldown=0, min_lr=MINIMUM_LR, eps=1e-10)
     model.to(device)
-    model.train()
 
     #If changing LR twice does not decrease.
     early_stopper = EarlyStopper(patience=10, min_delta=1)
 
 
     for epoch in range(EPOCHS):
+        model.train()
         print(f"Current Epoch: {epoch}")
         print("Training Now: ")
         for param_group in optimizer.param_groups:
@@ -219,7 +219,8 @@ def train():
         predicted_ys = []
         counter = 0
 
-        for batch in tqdm(train_loader):
+        for batch in train_loader:
+            
             optimizer.zero_grad()
             lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
             lambdaStericsGrad = batch.lambda_sterics.requires_grad_().to(device)
@@ -296,7 +297,7 @@ def train():
         print(f"Training Lossdy: {train_lossdy}")
         print(f"Training Loss_elec: {train_loss_elec}")
         print(f"Training Loss_ster: {train_loss_ster}")
-
+        
 
         print("Validation Now:")
         model.eval()
@@ -304,8 +305,8 @@ def train():
         running_lossdy = 0.0
         running_loss_elec = 0.0
         running_loss_ster = 0.0
-        true_ys = []
-        predicted_ys = []
+        val_true_ys = []
+        val_predicted_ys = []
         count = 0 
         for batch in val_loader:
             optimizer.zero_grad()
@@ -315,7 +316,7 @@ def train():
             lambdaStericsTrue = batch.sterics_derivative.to(device)
             y_true = batch.forces.to(device)
 
-            true_ys.append(y_true.detach().cpu().numpy().flatten())
+            val_true_ys.append(y_true.detach().cpu().numpy().flatten())
 
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
@@ -324,7 +325,7 @@ def train():
                                                     lambda_sterics=lambdaStericsGrad,
             
                                                     disable_lambdas = DISABLE_LAMBDA)
-            predicted_ys.append(negdy.detach().cpu().numpy().flatten())
+            val_predicted_ys.append(negdy.detach().cpu().numpy().flatten())
 
 
             
@@ -358,6 +359,9 @@ def train():
         val_loss_elec = running_loss_elec / len(val_loader)
         val_loss_ster = running_loss_ster / len(val_loader)
 
+        true_ys = np.concatenate(val_true_ys)
+        predicted_ys = np.concatenate(val_predicted_ys)
+
         val_r2 = r2_score(true_ys, predicted_ys)
         print(f"R2: {val_r2}")
 
@@ -368,10 +372,19 @@ def train():
 
         
         if(CONNECT_WANDB):
-            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS": train_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS AGGREGATE": train_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS FORCES": train_lossdy})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS STERICS": train_loss_ster})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS ELECTROSTATICS": train_loss_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2": train_r2})
-            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS": val_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS AGGREGATE": val_loss})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS FORCES": val_lossdy})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS STERICS": val_loss_ster})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS ELECTROSTATICS": val_loss_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2": val_r2})
+
+
+
 
         if(SCHEDULER):
                 scheduler.step(val_loss)     
@@ -383,7 +396,7 @@ def train():
 
 
 
-    name = random.randint(-1e6, 1e6)
+    name = str(random.randint(0, int(1e6)))
     print(f"model_name: {name}")    
     torch.save(model.state_dict(), f'{name}.pt')
 
