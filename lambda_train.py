@@ -34,10 +34,10 @@ TENSOR_NET_LAYERS: int = 5
 LAMBDA_INTEGRATION_LAYERS: int = 10
 MAX_NUM_NEIGHBORS: int = 120
 
-BATCH_SIZE: int = 8
+BATCH_SIZE: int = 4
 WEIGHT_DECAY: float = 0
 CLIP: float = 1
-INITIAL_LEARNING_RATE: float = 1e-6
+INITIAL_LEARNING_RATE: float = 1e-7
 SCHEDULER: bool = False
 MINIMUM_LR: float = 1e-15
 EPOCHS: int = 1000
@@ -395,12 +395,10 @@ def train():
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING FILTERED R2": filter_r2})
 
 
-        if(EPOCHS % SAVE_RATE):
+        if(EPOCHS % SAVE_RATE == 0):
             name = str(random.randint(0, 1000000))  # This ensures the range is correctly set with integers
             print(f"model_name: {name}")
-            torch.save(model.state_dict(), f'{name}.pt')    
-            if(CONNECT_WANDB):
-                run.link_model(f'{name}.pt', f"ISAI_{WANDB_GRAPH_NAME}_Epoch{EPOCHS}")
+            torch.save(model.state_dict(), f'/users/r/d/rdey/{name}.pt')    
 
 
 
