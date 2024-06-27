@@ -17,39 +17,47 @@ from torchmdnet.models.utils import scatter
 from torchmdnet.extensions import is_current_stream_capturing
 import numpy as np
 from sklearn.metrics import r2_score
-from torch.nn.utils.rnn import pad_sequence
 
 
 
 #Parameters to change
-LOSS_VALIDATION: bool = False # PRINTS LOSS PER LABEL IF ABOVE MAX_LOSS
-MAX_LOSS: int = 1000000
-DISABLE_LAMBDA: bool = False # LOSS VALIDATION DOES NOT WORK WITH THIS DISABLED
+
+#Testing Variables
+LOSS_VALIDATION: bool = False # PRINTS LOSS PER LABEL IF ABOVE MAX_LOSS - This is broken lmao
+MAX_LOSS: int = 1000000 # This is dependent on LOSS_VALIDATION
+DISABLE_LAMBDA: bool = False # Disables lambda calculations - LOSS VALIDATION DOES NOT WORK WITH THIS DISABLED
+ONE_FILTER = True #Prints r2 masked against lambdavalues of one
+SAVE_RATE = 3 #How often to save the model
+OUTPUT_COMMENT = "Disabled Scheduler and Early Stopper and Weight Decay; LR of 1e-6"
+VALIDATION = True #Edit: I fixed this :) -- DOES NOT WORK - I was slightly lazy to add a single if statement
+BATCH_DISABLER_INT = 100 #-1 disables it; Limits the number of batches for testing purposes
+
 
 HIDDEN_CHANNELS: int = 128
-TENSOR_NET_LAYERS: int = 5
-LAMBDA_INTEGRATION_LAYERS: int = 5
+TENSOR_NET_LAYERS: int = 5 #Amount of layers in the TensorNet
+LAMBDA_INTEGRATION_LAYERS: int = 10 #Amount of layers in the MLP
 MAX_NUM_NEIGHBORS: int = 120
-
-BATCH_SIZE: int = 8
-WEIGHT_DECAY: float = 1e-6
-CLIP: float = 1
-INITIAL_LEARNING_RATE: float = 1e-4
-SCHEDULER: bool = True
-MINIMUM_LR: float = 1e-15
+BATCH_SIZE: int = 4
+WEIGHT_DECAY: float = 0
+CLIP: float = 1 #Gradient Clipping
+INITIAL_LEARNING_RATE: float = 1e-5
+SCHEDULER: bool = True #Activates the scheduler
+MINIMUM_LR: float = 1e-15 #Dependent on scheduler
+PATIENCE = 1 #Dependent on scheduler
 EPOCHS: int = 1000
-EARLY_STOP = True
+EARLY_STOP = False #Activates Earlystopper 
 
-CONNECT_WANDB: bool = True
+
+#Wandb Variables
+CONNECT_WANDB: bool = False
 WANDB_PROJ_NAME: str = "ML Implicit Solvent"
-WANDB_GRAPH_NAME: str = f'4.2 STATIC FRAME IDX w/ VALIDATION - 5x5 LAYERS - SCHEDULER {INITIAL_LEARNING_RATE} BS{BATCH_SIZE} GS{CLIP}'
+WANDB_GRAPH_NAME: str = f'5.0'
 SLURMM_OUTPUT_TITLE_NAME: str = WANDB_GRAPH_NAME
 
 
-VALIDATION = True
 
 
-#Main class 
+#Main Ensemble NN class 
 class ISAI(nn.Module):
 
     def __init__(self, hidden_channels, 
@@ -135,7 +143,7 @@ class LambdaScalar(nn.Module):
         self.layers = nn.Sequential(*layers)
         
         self.reset_parameters()
-
+    #model learns better with xavier with the lambdas
     def reset_parameters(self):
         for module in self.layers.modules():
             if isinstance(module, nn.Linear):
@@ -150,7 +158,7 @@ class LambdaScalar(nn.Module):
         #Applies the MLP on the Lambdas and the values of the TensorNet
         if not disable_lambdas: 
             lambda_electrostatics, lambda_sterics = lambda_electrostatics[batch].view(-1, 1), lambda_sterics[batch].view(-1, 1)
-            y = cat((y, lambda_electrostatics, lambda_sterics),dim=1)
+            y = torch.cat((y, lambda_electrostatics, lambda_sterics),dim=1)
 
         y = self.layers(y)
         is_capturing = y.is_cuda and is_current_stream_capturing()
@@ -159,7 +167,7 @@ class LambdaScalar(nn.Module):
         
         return scatter(y, batch, dim=0, dim_size=self.dim_size)
     
-
+#Early Stopper to stop the NN if not learning
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0.001):
         self.patience = patience
@@ -178,7 +186,7 @@ class EarlyStopper:
         return False
 
 
-
+#Main training definition
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_dataset = BigBindSolvDataset("train", frame_index=0)
@@ -196,7 +204,7 @@ def train():
 
     if(SCHEDULER):
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', factor=0.1, 
-                                                    patience=3, threshold=1e-3, threshold_mode='abs',
+                                                    patience=PATIENCE, threshold=1e-3, threshold_mode='abs',
                                                     cooldown=0, min_lr=MINIMUM_LR, eps=1e-10)
     model.to(device)
 
@@ -205,11 +213,11 @@ def train():
 
 
     for epoch in range(EPOCHS):
+        count = 0
         model.train()
         print(f"Current Epoch: {epoch}")
         print("Training Now: ")
-        for param_group in optimizer.param_groups:
-            print(f"Learning rate is {param_group['lr']}")
+
         running_loss = 0.0
         running_lossdy = 0.0
         running_loss_elec = 0.0
@@ -217,7 +225,12 @@ def train():
 
         true_ys = []
         predicted_ys = []
-        counter = 0
+        filter_predicted = []
+        filter_true = []
+        l_sterics_true = []
+        l_elec_true = []
+        l_sterics_predicted = []
+        l_elec_predicted = []
 
         for batch in train_loader:
             
@@ -229,6 +242,8 @@ def train():
             y_true = batch.forces.to(device)
 
             true_ys.append(y_true.detach().cpu().numpy().flatten())
+            l_sterics_true.append(lambdaStericsGrad.detach().cpu().numpy())
+            l_elec_true.append(lambdaElecGrad.detach().cpu().numpy())
             
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
@@ -238,15 +253,27 @@ def train():
             
                                                     disable_lambdas = DISABLE_LAMBDA)
             predicted_ys.append(negdy.detach().cpu().numpy().flatten())
+            l_sterics_predicted.append(dSterics.detach().cpu().numpy())
+            l_elec_predicted.append(dElectrostatics.detach().cpu().numpy())
             
-            if not DISABLE_LAMBDA: 
+            if not DISABLE_LAMBDA:
+
+                #Filter for ones for lambda values
+                if ONE_FILTER: 
+                    mask = (lambdaElecGrad.cpu() == 1) & (lambdaStericsGrad.cpu() == 1)
+                    mask = mask[batch.batch]
+                    filter_true.append(y_true[mask].detach().cpu().numpy().flatten())
+                    filter_predicted.append(negdy[mask].detach().cpu().numpy().flatten())
+
                 lossdy = criterion(negdy, y_true)
                 loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
                 loss_ster = criterion(dSterics, lambdaElecTrue)
                 loss = lossdy + loss_elec + loss_ster
                 
+            
 
             loss.backward()
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
             optimizer.step()
 
@@ -277,28 +304,48 @@ def train():
             torch.cuda.empty_cache()
             gc.collect()
 
+            if BATCH_DISABLER_INT != -1:
+                if(count > BATCH_DISABLER_INT):
+                    break
+                else:
+                    count +=1
+
         
-        
+        #Accuracy Calculations for interpretability
+        filter_r2 = 0
         true_ys = np.concatenate(true_ys)
         predicted_ys = np.concatenate(predicted_ys)
+        #l_elec_predicted = np.concatenate(l_elec_predicted)
+        #l_elec_true = np.concatenate(l_elec_true)
+        #l_sterics_predicted = np.concatenate(l_sterics_predicted)
+        #l_sterics_true = np.concatenate(l_elec_true)
+        if ONE_FILTER and not DISABLE_LAMBDA:
 
-        train_r2 = r2_score(true_ys, predicted_ys)
-        print(f"R2: {train_r2}")
+            filter_true = np.concatenate(filter_true)
+            filter_predicted = np.concatenate(filter_predicted)
+            filter_r2 = r2_score(filter_true, filter_predicted)
+
+        train_r2_dy = r2_score(true_ys, predicted_ys)
+        train_r2_sterics = r2_score(l_sterics_true, l_sterics_predicted)
+        train_r2_elec = r2_score(l_elec_true, l_elec_predicted)
+
+        print(f"R2_dy: {train_r2_dy}")
+        print(f"R2_elec: {train_r2_elec}")
+        print(f"R2_ster: {train_r2_sterics}")
+        print(f"FilterR2: {filter_r2}")
 
         train_loss = running_loss / len(train_loader)
         train_lossdy = running_lossdy / len(train_loader)
         train_loss_elec = running_loss_elec / len(train_loader)
-        train_loss_ster = running_loss_ster / len(train_loader)
-
-
-        
+        train_loss_ster = running_loss_ster / len(train_loader)   
         
         print(f"Training Loss: {train_loss}")
         print(f"Training Lossdy: {train_lossdy}")
         print(f"Training Loss_elec: {train_loss_elec}")
         print(f"Training Loss_ster: {train_loss_ster}")
         
-
+        if not VALIDATION:
+            continue
         print("Validation Now:")
         model.eval()
         running_loss = 0.0
@@ -307,7 +354,6 @@ def train():
         running_loss_ster = 0.0
         val_true_ys = []
         val_predicted_ys = []
-        count = 0 
         for batch in val_loader:
             optimizer.zero_grad()
             lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
@@ -334,9 +380,6 @@ def train():
                 loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
                 loss_ster = criterion(dSterics, lambdaElecTrue)
                 loss = lossdy + loss_elec + loss_ster
-
-            if(CONNECT_WANDB):
-                wandb.log({"Validation Loss": loss.item()})
 
             running_loss += loss.item()
             running_lossdy += lossdy.item()
@@ -369,44 +412,64 @@ def train():
         print(f"Validation Lossdy: {val_lossdy}")
         print(f"Validation Loss_elec: {val_loss_elec}")
         print(f"Validation Loss_ster: {val_loss_ster}")
-
+        for param_group in optimizer.param_groups:
+            print(f"Learning rate is {param_group['lr']}")
+            if(CONNECT_WANDB):
+                wandb.log({f"{WANDB_GRAPH_NAME} LR": param_group['lr']})
         
         if(CONNECT_WANDB):
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS AGGREGATE": train_loss})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS FORCES": train_lossdy})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS STERICS": train_loss_ster})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS ELECTROSTATICS": train_loss_elec})
-            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2": train_r2})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_DY": train_r2_dy})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_STERICS": train_r2_elec})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_ELECTROSTATICS": train_r2_sterics})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS AGGREGATE": val_loss})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS FORCES": val_lossdy})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS STERICS": val_loss_ster})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS ELECTROSTATICS": val_loss_elec})
-            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2": val_r2})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_DY": val_r2})
+            wandb.log({f"{WANDB_GRAPH_NAME} TRAINING FILTERED R2": filter_r2})
+
+
+        if(EPOCHS % SAVE_RATE == 0):
+            name = str(random.randint(0, 1000000))  # This ensures the range is correctly set with integers
+            print(f"model_name: {name}")
+            torch.save(model.state_dict(), f'/users/r/d/rdey/{name}.pt')    
 
 
 
-
+        #Future processing for future epochs in training
         if(SCHEDULER):
                 scheduler.step(val_loss)     
         if EARLY_STOP: 
             if(early_stopper.early_stop(val_loss)):
                 print(f"Early Stopped, loss not decreasing")
-                break
-        
-
-
-
-    name = str(random.randint(0, int(1e6)))
-    print(f"model_name: {name}")    
-    torch.save(model.state_dict(), f'{name}.pt')
+    
 
 
            
 
 if __name__ == "__main__":
+    print(OUTPUT_COMMENT)
     if(CONNECT_WANDB):
         print("hi")
-        wandb.init(project = WANDB_PROJ_NAME)
+        run = wandb.init(
+            project = WANDB_PROJ_NAME,
+            config  = {
+                "Hidden Channels": HIDDEN_CHANNELS,
+                "Tensor Net Layers": TENSOR_NET_LAYERS,
+                "Lambda Integration Layers": LAMBDA_INTEGRATION_LAYERS,
+                "Max Number Neighbors": MAX_NUM_NEIGHBORS,
+                "Batch Size": BATCH_SIZE,
+                "Weight Decay": WEIGHT_DECAY,
+                "Gradient Clipping": CLIP,
+                "Initial LR": INITIAL_LEARNING_RATE, 
+                "Scheduler?": SCHEDULER, 
+                "Num of Epochs": EPOCHS, 
+                "Early Stop": EARLY_STOP,
+            }
+            )
     print(SLURMM_OUTPUT_TITLE_NAME)
-
     train()
