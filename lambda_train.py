@@ -17,7 +17,7 @@ from torchmdnet.models.utils import scatter
 from torchmdnet.extensions import is_current_stream_capturing
 import numpy as np
 from sklearn.metrics import r2_score
-
+import os
 
 
 #Parameters to change
@@ -29,20 +29,24 @@ LOSS_VALIDATION: bool = False # PRINTS LOSS PER LABEL IF ABOVE MAX_LOSS - This i
 MAX_LOSS: int = 1000000 # This is dependent on LOSS_VALIDATION
 DISABLE_LAMBDA: bool = False # Disables lambda calculations - LOSS VALIDATION DOES NOT WORK WITH THIS DISABLED
 ONE_FILTER = True #Prints r2 masked against lambdavalues of one
+
+
 SAVE_RATE = 3 #How often to save the model
+SAVE_PATH = '/users/r/d/rdey/'
+
+
 OUTPUT_COMMENT = "Disabled Scheduler and Early Stopper and Weight Decay; LR of 1e-6"
 VALIDATION = True #Edit: I fixed this :) -- DOES NOT WORK - I was slightly lazy to add a single if statement
 BATCH_DISABLER_INT = -1 #-1 disables it; Limits the number of batches for testing purposes
 SHUFFLE = True
-
-HIDDEN_CHANNELS: int = 100
+HIDDEN_CHANNELS: int = 128
 TENSOR_NET_LAYERS: int = 2 #Amount of layers in the TensorNet
 LAMBDA_INTEGRATION_LAYERS: int = 10 #Amount of layers in the MLP
 MAX_NUM_NEIGHBORS: int = 120
 BATCH_SIZE: int = 4
 WEIGHT_DECAY: float = 0.01
-CLIP: float = 0 #Gradient Clipping
-INITIAL_LEARNING_RATE: float = 0.00001 #1e-5 best for dy; 1e-5 
+CLIP: float = -1 #Gradient Clipping; -1 Disables 
+INITIAL_LEARNING_RATE: float = 0.00001 #1e-4 best for dy; 1e-5 best for lambdas 
 SCHEDULER: bool = False #Activates the scheduler
 MINIMUM_LR: float = 1e-15 #Dependent on scheduler
 PATIENCE = 1 #Dependent on scheduler
@@ -60,6 +64,17 @@ WANDB_PROJ_NAME: str = "ML Implicit Solvent"
 WANDB_GRAPH_NAME: str = f'5.0'
 SLURMM_OUTPUT_TITLE_NAME: str = WANDB_GRAPH_NAME
 
+TESTING_MASTERCLASS = False #Disables and changes many of the above parameters for testing purposes
+
+
+
+
+if TESTING_MASTERCLASS:
+    VALIDATION = False
+    SAVE_RATE = 10000000
+    SHUFFLE = False
+    CONNECT_WANDB = False
+    BATCH_DISABLER_INT = 10
 
 
 
@@ -252,8 +267,8 @@ def train():
             
 
             true_ys.append(y_true.detach().cpu().numpy().flatten())
-            l_sterics_true.append(lambdaStericsTrue.detach().cpu().numpy())
-            l_elec_true.append(lambdaElecTrue.detach().cpu().numpy())
+            l_sterics_true.append(lambdaStericsTrue.detach().cpu().view(-1,1).numpy())
+            l_elec_true.append(lambdaElecTrue.detach().cpu().view(-1,1).numpy())
             
 
             
@@ -266,8 +281,8 @@ def train():
                                                     disable_lambdas = DISABLE_LAMBDA)
 
             predicted_ys.append(negdy.detach().cpu().numpy().flatten())
-            l_sterics_predicted.append(dSterics.detach().cpu().numpy())
-            l_elec_predicted.append(dElectrostatics.detach().cpu().numpy())
+            l_sterics_predicted.append(dSterics.detach().cpu().view(-1,1).numpy())
+            l_elec_predicted.append(dElectrostatics.detach().cpu().view(-1,1).numpy())
             
             if not DISABLE_LAMBDA:
 
@@ -284,7 +299,9 @@ def train():
                 loss = lossdy*LOSS_COEFFICIENT_DY + loss_elec*LOSS_COEFFICIENT_ELECTROSTATICS + loss_ster*LOSS_COEFFICIENT_STERICS
                 
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
+
+            if CLIP != -1:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
             optimizer.step()
 
             running_loss += loss.item()
@@ -323,10 +340,10 @@ def train():
         filter_r2 = 0
         true_ys = np.concatenate(true_ys)
         predicted_ys = np.concatenate(predicted_ys)
-        #l_elec_predicted = np.concatenate(l_elec_predicted)
-        #l_elec_true = np.concatenate(l_elec_true)
-        #l_sterics_predicted = np.concatenate(l_sterics_predicted)
-        #l_sterics_true = np.concatenate(l_elec_true)
+        l_elec_predicted = np.concatenate(l_elec_predicted)
+        l_elec_true = np.concatenate(l_elec_true)
+        l_sterics_predicted = np.concatenate(l_sterics_predicted)
+        l_sterics_true = np.concatenate(l_elec_true)
         if ONE_FILTER and not DISABLE_LAMBDA:
 
             filter_true = np.concatenate(filter_true)
@@ -359,17 +376,9 @@ def train():
         print(f"Training Loss_ster: {train_loss_ster}")
         
 
-
-
-
-
-
-
-
-
-
         if not VALIDATION:
             continue
+
         print("Validation Now:")
         model.eval()
         running_loss = 0.0
@@ -444,6 +453,11 @@ def train():
             print(f"Learning rate is {param_group['lr']}")
             if(CONNECT_WANDB):
                 wandb.log({f"{WANDB_GRAPH_NAME} LR": param_group['lr']})
+
+        if(EPOCHS % SAVE_RATE == 0):
+            name = str(random.randint(0, 100000000000))  # This ensures the range is correctly set with integers
+            print(f"model_name: {name}")
+            torch.save(model.state_dict(), os.path.join(SAVE_PATH, f'{name}.pt'))            
         
         if(CONNECT_WANDB):
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS AGGREGATE": train_loss})
@@ -459,12 +473,10 @@ def train():
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS ELECTROSTATICS": val_loss_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_DY": val_r2})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING FILTERED R2": filter_r2})
+            wandb.log({f"{WANDB_GRAPH_NAME} LOGGED MODEL": name})
 
 
-        if(EPOCHS % SAVE_RATE == 0):
-            name = str(random.randint(0, 1000000))  # This ensures the range is correctly set with integers
-            print(f"model_name: {name}")
-            torch.save(model.state_dict(), f'/users/r/d/rdey/{name}.pt')    
+        
 
 
 
