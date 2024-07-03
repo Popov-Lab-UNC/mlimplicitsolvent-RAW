@@ -18,25 +18,25 @@ class BigBindSolvDataset(Dataset):
         self.frame_index = frame_index
         
     def __len__(self):
-        return self.length
+        return self.length * self.frame_index
     
     def __getitem__(self, index):
+        index_mod = index % self.length
+        group = self.file[self.keys[index_mod]]
 
-        group = self.file[self.keys[index]]
         q = group["charges"][:]
         all_positions = group["positions"][:]
         atomic_numbers = group["atomic_numbers"][:]
         all_forces = group["solv_forces"][:]
 
         # choose a random frame from the simulation
-        if self.frame_index is None:
+        if self.frame_index is None or (all_positions.shape[0] < self.frame_index):
             frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
         else:
-            frame_idx = self.frame_index
+            frame_idx = (index % self.frame_index)
 
         positions = all_positions[frame_idx]
         forces = all_forces[frame_idx]
-
         lambda_sterics = group["lambda_sterics"][frame_idx]
         lambda_electrostatics = group["lambda_electrostatics"][frame_idx]
         sterics_derivative = group["sterics_derivatives"][frame_idx]

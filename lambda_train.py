@@ -1,3 +1,4 @@
+
 #AI model of Solvation using TorchMDNet TensorNet
 #Need a better name than ISAI
 import torch.nn as nn
@@ -18,13 +19,16 @@ from torchmdnet.extensions import is_current_stream_capturing
 import numpy as np
 from sklearn.metrics import r2_score
 import os
+from typing import Optional
+
 
 
 #Parameters to change
 
 #SiLU is the only that works for autograd lambda values; works better with AMSGrad turned on
+OUTPUT_COMMENT = "Added Charges"
 
-#Testing Variables
+#Interpretability Variables
 LOSS_VALIDATION: bool = False # PRINTS LOSS PER LABEL IF ABOVE MAX_LOSS - This is broken lmao
 MAX_LOSS: int = 1000000 # This is dependent on LOSS_VALIDATION
 DISABLE_LAMBDA: bool = False # Disables lambda calculations - LOSS VALIDATION DOES NOT WORK WITH THIS DISABLED
@@ -35,27 +39,26 @@ SAVE_RATE = 3 #How often to save the model
 SAVE_PATH = '/users/r/d/rdey/'
 
 
-OUTPUT_COMMENT = "Disabled Scheduler and Early Stopper and Weight Decay; LR of 1e-6"
 VALIDATION = True #Edit: I fixed this :) -- DOES NOT WORK - I was slightly lazy to add a single if statement
 BATCH_DISABLER_INT = -1 #-1 disables it; Limits the number of batches for testing purposes
 SHUFFLE = True
 HIDDEN_CHANNELS: int = 128
-TENSOR_NET_LAYERS: int = 2 #Amount of layers in the TensorNet
-LAMBDA_INTEGRATION_LAYERS: int = 10 #Amount of layers in the MLP
-MAX_NUM_NEIGHBORS: int = 120
+TENSOR_NET_LAYERS: int = 3 #Amount of layers in the TensorNet
+LAMBDA_INTEGRATION_LAYERS: int = 18 #Amount of layers in the MLP
+MAX_NUM_NEIGHBORS: int = 128
 BATCH_SIZE: int = 4
 WEIGHT_DECAY: float = 0.01
 CLIP: float = -1 #Gradient Clipping; -1 Disables 
-INITIAL_LEARNING_RATE: float = 0.00001 #1e-4 best for dy; 1e-5 best for lambdas 
+INITIAL_LEARNING_RATE: float = 1e-4 #1e-4 best for dy; 1e-5 best for lambdas 
 SCHEDULER: bool = False #Activates the scheduler
 MINIMUM_LR: float = 1e-15 #Dependent on scheduler
 PATIENCE = 1 #Dependent on scheduler
-EPOCHS: int = 2000
+EPOCHS: int = 1000
 EARLY_STOP = False #Activates Earlystopper 
 
-LOSS_COEFFICIENT_DY = 10
-LOSS_COEFFICIENT_ELECTROSTATICS = 1
-LOSS_COEFFICIENT_STERICS = 1
+LOSS_COEFFICIENT_DY = 8
+LOSS_COEFFICIENT_ELECTROSTATICS = 3
+LOSS_COEFFICIENT_STERICS = 2
 
 
 #Wandb Variables
@@ -64,7 +67,7 @@ WANDB_PROJ_NAME: str = "ML Implicit Solvent"
 WANDB_GRAPH_NAME: str = f'5.0'
 SLURMM_OUTPUT_TITLE_NAME: str = WANDB_GRAPH_NAME
 
-TESTING_MASTERCLASS = False #Disables and changes many of the above parameters for testing purposes
+TESTING_MASTERCLASS = False # Overfitting; Disables and changes many of the above parameters for testing purposes
 
 
 
@@ -74,7 +77,7 @@ if TESTING_MASTERCLASS:
     SAVE_RATE = 10000000
     SHUFFLE = False
     CONNECT_WANDB = False
-    BATCH_DISABLER_INT = 10
+    BATCH_DISABLER_INT = 1
 
 
 
@@ -129,7 +132,8 @@ class ISAI(nn.Module):
         
     def forward(self, 
                 z: Tensor,
-                pos: Tensor, 
+                pos: Tensor,
+                q: Tensor, 
                 batch: Tensor,
                 lambda_electrostatics,
                 lambda_sterics,
@@ -137,9 +141,14 @@ class ISAI(nn.Module):
         
         if self.derivative: 
             pos.requires_grad_()
-        
-        y,_,z,pos,batch = self.TensorNet(z,pos, batch)
 
+        #lambda_electrostatics = [1 if val is None else val for val in lambda_electrostatics]
+        #lambda_sterics = [1 if val is None else val for val in lambda_sterics]
+            
+        #Accounts charges for lambda_electrostatics, allows model to focus more on the nonpolar components
+        q = q*torch.sqrt(lambda_electrostatics[batch].detach())
+
+        y,_,z,pos,batch = self.TensorNet(z=z,pos=pos,q=q,batch=batch)
         y = self.ReduceModel(y, lambda_sterics, lambda_electrostatics, disable_lambdas, batch)
 
         if self.derivative:
@@ -160,7 +169,7 @@ class LambdaScalar(nn.Module):
         for _ in range(integration_layers):
             layers.append(nn.Linear(hidden_channels + 2, hidden_channels + 2))
             layers.append(nn.BatchNorm1d(hidden_channels + 2))
-            layers.append(nn.SiLU())
+            layers.append(nn.ELU())
         layers.append(nn.Linear(hidden_channels + 2, 1))
         
         self.layers = nn.Sequential(*layers)
@@ -212,9 +221,10 @@ class EarlyStopper:
 #Main training definition
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = BigBindSolvDataset("train", frame_index=0)
+    train_dataset = BigBindSolvDataset("train", frame_index=7)
     train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=SHUFFLE)
-    val_dataset = BigBindSolvDataset("val", frame_index=0)
+    print(len(train_dataset))
+    val_dataset = BigBindSolvDataset("val", frame_index=1)
     val_loader = ter.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
     model = ISAI(hidden_channels=HIDDEN_CHANNELS,
@@ -260,20 +270,23 @@ def train():
             optimizer.zero_grad()
             lambdaElec = batch.lambda_electrostatics.requires_grad_().to(device)
             lambdaSterics = batch.lambda_sterics.requires_grad_().to(device)
+
             lambdaElecTrue = batch.electrostatics_derivative.to(device)
             lambdaStericsTrue = batch.sterics_derivative.to(device)
+
             y_true = batch.forces.to(device)
 
             
 
             true_ys.append(y_true.detach().cpu().numpy().flatten())
-            l_sterics_true.append(lambdaStericsTrue.detach().cpu().view(-1,1).numpy())
-            l_elec_true.append(lambdaElecTrue.detach().cpu().view(-1,1).numpy())
+            l_sterics_true.append(lambdaStericsTrue.cpu().view(-1,1).numpy())
+            l_elec_true.append(lambdaElecTrue.cpu().view(-1,1).numpy())
             
 
             
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
+                                                    q = batch.charges.to(device),
                                                     batch=batch.batch.to(device),
                                                     lambda_electrostatics=lambdaElec,
                                                     lambda_sterics=lambdaSterics,
@@ -294,8 +307,8 @@ def train():
                     filter_predicted.append(negdy[mask].detach().cpu().numpy().flatten())
 
                 lossdy = criterion(negdy, y_true)
-                loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
-                loss_ster = criterion(dSterics, lambdaElecTrue)
+                loss_elec = criterion(dElectrostatics,lambdaElecTrue) 
+                loss_ster = criterion(dSterics, lambdaStericsTrue)
                 loss = lossdy*LOSS_COEFFICIENT_DY + loss_elec*LOSS_COEFFICIENT_ELECTROSTATICS + loss_ster*LOSS_COEFFICIENT_STERICS
                 
             loss.backward()
@@ -343,7 +356,8 @@ def train():
         l_elec_predicted = np.concatenate(l_elec_predicted)
         l_elec_true = np.concatenate(l_elec_true)
         l_sterics_predicted = np.concatenate(l_sterics_predicted)
-        l_sterics_true = np.concatenate(l_elec_true)
+        l_sterics_true = np.concatenate(l_sterics_true)
+
         if ONE_FILTER and not DISABLE_LAMBDA:
 
             filter_true = np.concatenate(filter_true)
@@ -385,9 +399,13 @@ def train():
         running_lossdy = 0.0
         running_loss_elec = 0.0
         running_loss_ster = 0.0
+        
         val_true_ys = []
         val_predicted_ys = []
-        
+        filter_val_true = []
+        filter_val_predicted = []
+
+
         for batch in val_loader:
             optimizer.zero_grad()
             lambdaElecGrad = batch.lambda_electrostatics.requires_grad_().to(device)
@@ -397,10 +415,9 @@ def train():
             y_true = batch.forces.to(device)
             val_true_ys.append(y_true.detach().cpu().numpy().flatten())
 
-            
-
             negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
+                                                    q = batch.charges.to(device),
                                                     batch=batch.batch.to(device),
                                                     lambda_electrostatics=lambdaElecGrad,
                                                     lambda_sterics=lambdaStericsGrad,
@@ -420,7 +437,16 @@ def train():
 
             running_loss += loss.item()
             running_lossdy += lossdy.item()
+
             if not DISABLE_LAMBDA: 
+
+                if ONE_FILTER: 
+                    mask = (lambdaElecGrad.cpu() == 1) & (lambdaStericsGrad.cpu() == 1)
+                    mask = mask[batch.batch]
+                    filter_val_true.append(y_true[mask].detach().cpu().numpy().flatten())
+                    filter_val_predicted.append(negdy[mask].detach().cpu().numpy().flatten())
+
+
                 running_loss_elec += loss_elec.item()
                 running_loss_ster += loss_ster.item()
 
@@ -433,6 +459,12 @@ def train():
 
             torch.cuda.empty_cache()
             gc.collect()
+
+        if ONE_FILTER and not DISABLE_LAMBDA:
+
+            filter_true = np.concatenate(filter_true)
+            filter_predicted = np.concatenate(filter_predicted)
+            filter_val_r2 = r2_score(filter_val_true, filter_val_predicted)
             
         val_loss = running_loss / len(val_loader)
         val_lossdy = running_lossdy / len(val_loader)
@@ -444,6 +476,7 @@ def train():
 
         val_r2 = r2_score(true_ys, predicted_ys)
         print(f"R2: {val_r2}")
+        print(f"Val_Filter_R2: {filter_val_r2}")
 
         print(f"Validation Loss: {val_loss}")
         print(f"Validation Lossdy: {val_lossdy}")
@@ -457,7 +490,9 @@ def train():
         if(EPOCHS % SAVE_RATE == 0):
             name = str(random.randint(0, 100000000000))  # This ensures the range is correctly set with integers
             print(f"model_name: {name}")
-            torch.save(model.state_dict(), os.path.join(SAVE_PATH, f'{name}.pt'))            
+            torch.save(model.state_dict(), f=os.path.join(SAVE_PATH, f'{name}.pt'))
+            if(CONNECT_WANDB):
+                wandb.log({f"{WANDB_GRAPH_NAME} LOGGED MODEL": name})            
         
         if(CONNECT_WANDB):
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS AGGREGATE": train_loss})
@@ -473,12 +508,8 @@ def train():
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS ELECTROSTATICS": val_loss_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_DY": val_r2})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING FILTERED R2": filter_r2})
-            wandb.log({f"{WANDB_GRAPH_NAME} LOGGED MODEL": name})
-
-
-        
-
-
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION FILTERED R2": filter_val_r2})
+            
 
         #Future processing for future epochs in training
         if(SCHEDULER):
@@ -487,17 +518,13 @@ def train():
             if(early_stopper.early_stop(val_loss)):
                 print(f"Early Stopped, loss not decreasing")
     
-
-
-           
-
 if __name__ == "__main__":
     print(OUTPUT_COMMENT)
     if(CONNECT_WANDB):
         print("hi")
         run = wandb.init(
             project = WANDB_PROJ_NAME,
-            config  = {
+            config = {
                 "Hidden Channels": HIDDEN_CHANNELS,
                 "Tensor Net Layers": TENSOR_NET_LAYERS,
                 "Lambda Integration Layers": LAMBDA_INTEGRATION_LAYERS,
@@ -505,11 +532,15 @@ if __name__ == "__main__":
                 "Batch Size": BATCH_SIZE,
                 "Weight Decay": WEIGHT_DECAY,
                 "Gradient Clipping": CLIP,
-                "Initial LR": INITIAL_LEARNING_RATE, 
-                "Scheduler?": SCHEDULER, 
-                "Num of Epochs": EPOCHS, 
+                "Initial LR": INITIAL_LEARNING_RATE,
+                "Scheduler?": SCHEDULER,
+                "Num of Epochs": EPOCHS,
                 "Early Stop": EARLY_STOP,
-            }
+                "Loss Coefficient DY": LOSS_COEFFICIENT_DY,
+                "Loss Coefficient Electrostatics": LOSS_COEFFICIENT_ELECTROSTATICS,
+                "Loss Coefficient Sterics": LOSS_COEFFICIENT_STERICS,
+                }
             )
+        
     print(SLURMM_OUTPUT_TITLE_NAME)
     train()
