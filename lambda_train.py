@@ -35,7 +35,7 @@ DISABLE_LAMBDA: bool = False # Disables lambda calculations - LOSS VALIDATION DO
 ONE_FILTER = True #Prints r2 masked against lambdavalues of one
 
 
-SAVE_RATE = 3 #How often to save the model
+SAVE_RATE = 1 #How often to save the model
 SAVE_PATH = '/users/r/d/rdey/'
 
 
@@ -43,22 +43,22 @@ VALIDATION = True #Edit: I fixed this :) -- DOES NOT WORK - I was slightly lazy 
 BATCH_DISABLER_INT = -1 #-1 disables it; Limits the number of batches for testing purposes
 SHUFFLE = True
 HIDDEN_CHANNELS: int = 128
-TENSOR_NET_LAYERS: int = 3 #Amount of layers in the TensorNet
-LAMBDA_INTEGRATION_LAYERS: int = 18 #Amount of layers in the MLP
+TENSOR_NET_LAYERS: int = 2 #Amount of layers in the TensorNet
+LAMBDA_INTEGRATION_LAYERS: int =  25 #Amount of layers in the MLP
 MAX_NUM_NEIGHBORS: int = 128
 BATCH_SIZE: int = 4
 WEIGHT_DECAY: float = 0.01
 CLIP: float = -1 #Gradient Clipping; -1 Disables 
-INITIAL_LEARNING_RATE: float = 1e-4 #1e-4 best for dy; 1e-5 best for lambdas 
-SCHEDULER: bool = False #Activates the scheduler
+INITIAL_LEARNING_RATE: float = 1e-5 #1e-4 best for dy; 1e-5 best for lambdas 
+SCHEDULER: bool = True #Activates the scheduler
 MINIMUM_LR: float = 1e-15 #Dependent on scheduler
-PATIENCE = 1 #Dependent on scheduler
+PATIENCE = 10 #Dependent on scheduler
 EPOCHS: int = 1000
 EARLY_STOP = False #Activates Earlystopper 
 
-LOSS_COEFFICIENT_DY = 8
-LOSS_COEFFICIENT_ELECTROSTATICS = 3
-LOSS_COEFFICIENT_STERICS = 2
+LOSS_COEFFICIENT_DY = 0.5
+LOSS_COEFFICIENT_ELECTROSTATICS = 0.9
+LOSS_COEFFICIENT_STERICS = 0.9
 
 
 #Wandb Variables
@@ -73,11 +73,13 @@ TESTING_MASTERCLASS = False # Overfitting; Disables and changes many of the abov
 
 
 if TESTING_MASTERCLASS:
-    VALIDATION = False
-    SAVE_RATE = 10000000
+    VALIDATION = True
+    BATCH_SIZE = 1
+    SAVE_RATE = 3
     SHUFFLE = False
     CONNECT_WANDB = False
     BATCH_DISABLER_INT = 1
+    
 
 
 
@@ -106,7 +108,13 @@ class ISAI(nn.Module):
         if constraint:
             y = y*(lambda_electrostatics+lambda_sterics)
         grad_outputs = ones_like(y)
-
+        
+        dElectrostatics = grad([y], 
+                        [lambda_electrostatics], 
+                        grad_outputs=grad_outputs, 
+                        create_graph=True,
+                        retain_graph=True)[0]
+        assert dElectrostatics is not None, "Autograd returned None for the force prediction."
         dSterics = grad([y],
                         [lambda_sterics],
                         grad_outputs=grad_outputs,
@@ -120,14 +128,9 @@ class ISAI(nn.Module):
                   retain_graph=True)[0]
         assert dy is not None, "Autograd returned None for the force prediction."
 
-        dElectrostatics = grad([y], 
-                        [lambda_electrostatics], 
-                        grad_outputs=grad_outputs, 
-                        create_graph=True,
-                        retain_graph=True)[0]
-        assert dElectrostatics is not None, "Autograd returned None for the force prediction."
+        
 
-        return -dy, dSterics, dElectrostatics 
+        return y, -dy, dSterics, dElectrostatics 
 
         
     def forward(self, 
@@ -146,18 +149,36 @@ class ISAI(nn.Module):
         #lambda_sterics = [1 if val is None else val for val in lambda_sterics]
             
         #Accounts charges for lambda_electrostatics, allows model to focus more on the nonpolar components
-        q = q*torch.sqrt(lambda_electrostatics[batch].detach())
+        q = q*lambda_electrostatics[batch]
 
         y,_,z,pos,batch = self.TensorNet(z=z,pos=pos,q=q,batch=batch)
         y = self.ReduceModel(y, lambda_sterics, lambda_electrostatics, disable_lambdas, batch)
 
         if self.derivative:
-            negdy, dSterics, dElectrostatics = self.derivativeCalc(constraint = True, y=y, pos=pos,
+            y, negdy, dSterics, dElectrostatics = self.derivativeCalc(constraint = True, y=y, pos=pos,
                                 lambda_electrostatics= lambda_electrostatics, 
                                 lambda_sterics=lambda_sterics)
-            return negdy, dSterics, dElectrostatics
+            return y, negdy, dSterics, dElectrostatics
         else:
             return y
+
+
+class ResBlock(nn.Module):
+    def __init__(self, hidden_channels, out_channels):
+        super(ResBlock, self).__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(hidden_channels, out_channels),
+            nn.BatchNorm1d(out_channels),
+            nn.SiLU(inplace=True)
+        )
+
+    def forward(self, x):
+        identity = x
+        x = self.layers(x)
+        x += identity
+        x = nn.SiLU()(x)
+        return x
+
 
 #Hidden Channel Convergence Model         
 class LambdaScalar(nn.Module):
@@ -166,15 +187,15 @@ class LambdaScalar(nn.Module):
         super(LambdaScalar, self).__init__()
 
         layers = []
+
+        input_dim = hidden_channels + 2
+        layers.append(nn.Linear(input_dim, input_dim))
         for _ in range(integration_layers):
-            layers.append(nn.Linear(hidden_channels + 2, hidden_channels + 2))
-            layers.append(nn.BatchNorm1d(hidden_channels + 2))
-            layers.append(nn.ELU())
-        layers.append(nn.Linear(hidden_channels + 2, 1))
-        
+            layers.append(ResBlock(input_dim, input_dim))
+        layers.append(nn.Linear(input_dim, 1))
         self.layers = nn.Sequential(*layers)
-        
-        self.reset_parameters()
+
+
     #model learns better with xavier with the lambdas
     def reset_parameters(self):
         for module in self.layers.modules():
@@ -190,7 +211,7 @@ class LambdaScalar(nn.Module):
         #Applies the MLP on the Lambdas and the values of the TensorNet
         if not disable_lambdas: 
             lambda_electrostatics, lambda_sterics = lambda_electrostatics[batch].view(-1, 1), lambda_sterics[batch].view(-1, 1)
-            y = torch.cat((y, lambda_electrostatics, lambda_sterics),dim=1)
+            y = torch.cat((y,lambda_sterics, lambda_electrostatics),dim=1)
 
         y = self.layers(y)
         is_capturing = y.is_cuda and is_current_stream_capturing()
@@ -221,7 +242,7 @@ class EarlyStopper:
 #Main training definition
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = BigBindSolvDataset("train", frame_index=7)
+    train_dataset = BigBindSolvDataset("train", frame_index=10)
     train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=SHUFFLE)
     print(len(train_dataset))
     val_dataset = BigBindSolvDataset("val", frame_index=1)
@@ -236,7 +257,7 @@ def train():
     optimizer = optim.AdamW(model.parameters(), lr=INITIAL_LEARNING_RATE, weight_decay = WEIGHT_DECAY, amsgrad=True,)
 
     if(SCHEDULER):
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', factor=0.1, 
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', factor=0.9, 
                                                     patience=PATIENCE, threshold=1e-3, threshold_mode='abs',
                                                     cooldown=0, min_lr=MINIMUM_LR, eps=1e-10)
     model.to(device)
@@ -284,7 +305,7 @@ def train():
             
 
             
-            negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
+            y, negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
                                                     q = batch.charges.to(device),
                                                     batch=batch.batch.to(device),
@@ -399,7 +420,7 @@ def train():
         running_lossdy = 0.0
         running_loss_elec = 0.0
         running_loss_ster = 0.0
-        
+
         val_true_ys = []
         val_predicted_ys = []
         filter_val_true = []
@@ -415,7 +436,7 @@ def train():
             y_true = batch.forces.to(device)
             val_true_ys.append(y_true.detach().cpu().numpy().flatten())
 
-            negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
+            y, negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
                                                     q = batch.charges.to(device),
                                                     batch=batch.batch.to(device),
@@ -443,8 +464,8 @@ def train():
                 if ONE_FILTER: 
                     mask = (lambdaElecGrad.cpu() == 1) & (lambdaStericsGrad.cpu() == 1)
                     mask = mask[batch.batch]
-                    filter_val_true.append(y_true[mask].detach().cpu().numpy().flatten())
-                    filter_val_predicted.append(negdy[mask].detach().cpu().numpy().flatten())
+                    filter_val_true.append(y_true[mask].detach().cpu().view(-1,1).numpy())
+                    filter_val_predicted.append(negdy[mask].detach().cpu().view(-1,1).numpy())
 
 
                 running_loss_elec += loss_elec.item()
@@ -460,11 +481,11 @@ def train():
             torch.cuda.empty_cache()
             gc.collect()
 
-        if ONE_FILTER and not DISABLE_LAMBDA:
+        #if ONE_FILTER and not DISABLE_LAMBDA:
 
-            filter_true = np.concatenate(filter_true)
-            filter_predicted = np.concatenate(filter_predicted)
-            filter_val_r2 = r2_score(filter_val_true, filter_val_predicted)
+            #filter_true = np.concatenate(filter_true)
+            #filter_predicted = np.concatenate(filter_predicted)
+            #filter_val_r2 = r2_score(filter_val_true, filter_val_predicted)
             
         val_loss = running_loss / len(val_loader)
         val_lossdy = running_lossdy / len(val_loader)
@@ -476,7 +497,7 @@ def train():
 
         val_r2 = r2_score(true_ys, predicted_ys)
         print(f"R2: {val_r2}")
-        print(f"Val_Filter_R2: {filter_val_r2}")
+        #print(f"Val_Filter_R2: {filter_val_r2}")
 
         print(f"Validation Loss: {val_loss}")
         print(f"Validation Lossdy: {val_lossdy}")
@@ -486,13 +507,17 @@ def train():
             print(f"Learning rate is {param_group['lr']}")
             if(CONNECT_WANDB):
                 wandb.log({f"{WANDB_GRAPH_NAME} LR": param_group['lr']})
-
-        if(EPOCHS % SAVE_RATE == 0):
+        
+        print(epoch % SAVE_RATE)
+        if((epoch % SAVE_RATE) == 0):
             name = str(random.randint(0, 100000000000))  # This ensures the range is correctly set with integers
             print(f"model_name: {name}")
-            torch.save(model.state_dict(), f=os.path.join(SAVE_PATH, f'{name}.pt'))
+            filepath = os.path.join(SAVE_PATH, f'{name}.pt')
+            print(filepath)
+            torch.save(model.state_dict(), filepath)
             if(CONNECT_WANDB):
-                wandb.log({f"{WANDB_GRAPH_NAME} LOGGED MODEL": name})            
+                wandb.log_artifact(filepath, type="model", name=name)
+                wandb.log({f"{WANDB_GRAPH_NAME} LOGGED MODEL": int(name)})            
         
         if(CONNECT_WANDB):
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING LOSS AGGREGATE": train_loss})
@@ -508,7 +533,7 @@ def train():
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS ELECTROSTATICS": val_loss_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_DY": val_r2})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING FILTERED R2": filter_r2})
-            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION FILTERED R2": filter_val_r2})
+            #wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION FILTERED R2": filter_val_r2})
             
 
         #Future processing for future epochs in training
