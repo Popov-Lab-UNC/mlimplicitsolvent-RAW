@@ -44,21 +44,21 @@ BATCH_DISABLER_INT = -1 #-1 disables it; Limits the number of batches for testin
 SHUFFLE = True
 HIDDEN_CHANNELS: int = 128
 TENSOR_NET_LAYERS: int = 2 #Amount of layers in the TensorNet
-LAMBDA_INTEGRATION_LAYERS: int =  25 #Amount of layers in the MLP
-MAX_NUM_NEIGHBORS: int = 128
-BATCH_SIZE: int = 4
+LAMBDA_INTEGRATION_LAYERS: int =   5 #Amount of layers in the MLP
+MAX_NUM_NEIGHBORS: int = 135
+BATCH_SIZE: int = 10
 WEIGHT_DECAY: float = 0.01
-CLIP: float = -1 #Gradient Clipping; -1 Disables 
-INITIAL_LEARNING_RATE: float = 1e-5 #1e-4 best for dy; 1e-5 best for lambdas 
+CLIP: float = 1 #Gradient Clipping; -1 Disables 
+INITIAL_LEARNING_RATE: float = 1e-4 #1e-4 best for dy; 1e-5 best for lambdas 
 SCHEDULER: bool = True #Activates the scheduler
 MINIMUM_LR: float = 1e-15 #Dependent on scheduler
 PATIENCE = 10 #Dependent on scheduler
 EPOCHS: int = 1000
 EARLY_STOP = False #Activates Earlystopper 
 
-LOSS_COEFFICIENT_DY = 0.5
-LOSS_COEFFICIENT_ELECTROSTATICS = 0.9
-LOSS_COEFFICIENT_STERICS = 0.9
+LOSS_COEFFICIENT_DY = 1
+LOSS_COEFFICIENT_ELECTROSTATICS = 2.5
+LOSS_COEFFICIENT_STERICS = 1.5
 
 
 #Wandb Variables
@@ -242,11 +242,11 @@ class EarlyStopper:
 #Main training definition
 def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset = BigBindSolvDataset("train", frame_index=10)
-    train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, shuffle=SHUFFLE)
+    train_dataset = BigBindSolvDataset("train", frame_index=15)
+    train_loader=ter.DataLoader(train_dataset, batch_size = BATCH_SIZE, num_workers = 4,shuffle=SHUFFLE, pin_memory = True,)
     print(len(train_dataset))
     val_dataset = BigBindSolvDataset("val", frame_index=1)
-    val_loader = ter.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = ter.DataLoader(val_dataset, batch_size=BATCH_SIZE, pin_memory = True, num_workers = 4, shuffle=False)
 
     model = ISAI(hidden_channels=HIDDEN_CHANNELS,
                  tensor_net_layers=TENSOR_NET_LAYERS,
@@ -435,6 +435,8 @@ def train():
             lambdaStericsTrue = batch.sterics_derivative.to(device)
             y_true = batch.forces.to(device)
             val_true_ys.append(y_true.detach().cpu().numpy().flatten())
+            l_sterics_true.append(lambdaStericsTrue.cpu().view(-1,1).numpy())
+            l_elec_true.append(lambdaElecTrue.cpu().view(-1,1).numpy())
 
             y, negdy, dSterics, dElectrostatics = model(z=batch.atomic_numbers.to(device),
                                                     pos=batch.positions.to(device),
@@ -447,13 +449,14 @@ def train():
             
             
             val_predicted_ys.append(negdy.detach().cpu().numpy().flatten())
-
+            l_sterics_predicted.append(dSterics.detach().cpu().view(-1,1).numpy())
+            l_elec_predicted.append(dElectrostatics.detach().cpu().view(-1,1).numpy())
 
             
             if not DISABLE_LAMBDA: 
                 lossdy = criterion(negdy, y_true)
-                loss_elec = criterion(dElectrostatics, lambdaStericsTrue) 
-                loss_ster = criterion(dSterics, lambdaElecTrue)
+                loss_elec = criterion(dElectrostatics, lambdaElecTrue) 
+                loss_ster = criterion(dSterics, lambdaStericsTrue)
                 loss = lossdy*LOSS_COEFFICIENT_DY + loss_elec*LOSS_COEFFICIENT_ELECTROSTATICS + loss_ster*LOSS_COEFFICIENT_STERICS
 
             running_loss += loss.item()
