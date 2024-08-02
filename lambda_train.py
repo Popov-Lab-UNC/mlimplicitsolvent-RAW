@@ -497,9 +497,18 @@ def train():
 
         true_ys = np.concatenate(val_true_ys)
         predicted_ys = np.concatenate(val_predicted_ys)
+        l_elec_predicted = np.concatenate(l_elec_predicted)
+        l_elec_true = np.concatenate(l_elec_true)
+        l_sterics_predicted = np.concatenate(l_sterics_predicted)
+        l_sterics_true = np.concatenate(l_sterics_true)
 
         val_r2 = r2_score(true_ys, predicted_ys)
+        val_r2_sterics = r2_score(l_sterics_true, l_sterics_predicted)
+        val_r2_elec = r2_score(l_elec_true, l_elec_predicted)
+
         print(f"R2: {val_r2}")
+        print(f"R2_elec: {val_r2_elec}")
+        print(f"R2_ster: {val_r2_sterics}")
         #print(f"Val_Filter_R2: {filter_val_r2}")
 
         print(f"Validation Loss: {val_loss}")
@@ -530,6 +539,8 @@ def train():
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_DY": train_r2_dy})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_STERICS": train_r2_elec})
             wandb.log({f"{WANDB_GRAPH_NAME} TRAINING R2_ELECTROSTATICS": train_r2_sterics})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_STERICS": val_r2_elec})
+            wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION R2_ELECTROSTATICS": val_r2_sterics})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS AGGREGATE": val_loss})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS FORCES": val_lossdy})
             wandb.log({f"{WANDB_GRAPH_NAME} VALIDATION LOSS STERICS": val_loss_ster})

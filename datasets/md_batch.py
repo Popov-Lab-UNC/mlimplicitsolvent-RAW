@@ -13,12 +13,11 @@ class MDData(ter.Batchable):
     charges: torch.Tensor
     atomic_numbers: torch.Tensor
     forces: torch.Tensor
-
+    atom_features: torch.Tensor
     lambda_sterics: torch.Tensor
     lambda_electrostatics: torch.Tensor
     sterics_derivative: torch.Tensor
     electrostatics_derivative: torch.Tensor
-
     @staticmethod
     def get_batch_type():
         return MDBatch
