@@ -31,8 +31,8 @@ def to_rdkit(data):
     """Converts a MDData object to a RDKit molecule"""
     xyz_block = to_xyz_block(data)
     mol = Chem.MolFromXYZBlock(xyz_block)
-    rdDetermineBonds.DetermineConnectivity(mol)
-    rdDetermineBonds.DetermineBondOrders(mol)
+    total_charge = round(float(data.charges.sum()))
+    rdDetermineBonds.DetermineBonds(mol, charge=total_charge)
     return mol
 
 
