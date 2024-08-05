@@ -1,7 +1,5 @@
 from typing import List
 import h5py
-import torch
-import terrace as ter
 import os
 from tqdm import trange
 from config import CONFIG
@@ -9,7 +7,6 @@ from datasets.bigbind_solv import BigBindSolvDataset
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 from datasets.md_batch import *
 from bigbind_solv.gb_baseline import *
-from lambda_train import *
 from traceback import print_exc
 
 def add_gbn_params():
