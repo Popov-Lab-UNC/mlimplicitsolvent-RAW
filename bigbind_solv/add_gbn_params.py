@@ -8,6 +8,23 @@ from openmm.app.internal.customgbforces import GBSAGBn2Force
 from datasets.md_batch import *
 from bigbind_solv.gb_baseline import *
 from traceback import print_exc
+import signal
+
+
+class timeout:
+    def __init__(self, seconds, error_message="Timeout"):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 def add_gbn_params():
     os.makedirs(CONFIG.bigbind_solv_dir, exist_ok=True)
@@ -23,18 +40,19 @@ def add_gbn_params():
         print("Adding Gbn parameters to", split)
         for index in trange(len(dataset)):
             try:
-                key = dataset.keys[index]
+                with timeout(5):
+                    key = dataset.keys[index]
 
-                data = dataset[index]
-                topology = to_openmm_topology(data)
-                force = GBSAGBn2Force(cutoff=None,SA="ACE")
-                gbn2_params = force.getStandardParameters(topology).shape
+                    data = dataset[index]
+                    topology = to_openmm_topology(data)
+                    force = GBSAGBn2Force(cutoff=None,SA="ACE")
+                    gbn2_params = force.getStandardParameters(topology).shape
 
-                out_group = h5_file.create_group(key)
-                in_group = dataset.file[key]
-                for k, v in in_group.items():
-                    out_group[k] = v[()]
-                out_group["gbn2_params"] = gbn2_params
+                    out_group = h5_file.create_group(key)
+                    in_group = dataset.file[key]
+                    for k, v in in_group.items():
+                        out_group[k] = v[()]
+                    out_group["gbn2_params"] = gbn2_params
             except KeyboardInterrupt:
                 raise
             except:
