@@ -9,9 +9,9 @@ class BigBindSolvDataset(Dataset):
     """ This dataset returns the charges, positions, atomic numbers,
     and forces of a frame in the bigbind_solv dataset."""
 
-    def __init__(self, split, frame_index):
+    def __init__(self, split, frame_index, dir=CONFIG.bigbind_solv_dir):
         """ Split is either 'train', 'val', or 'test'."""
-        file_path = os.path.join(CONFIG.bigbind_solv_dir, split + ".h5")
+        file_path = os.path.join(dir, split + ".h5")
         self.file = h5py.File(file_path, "r")
         self.keys = list(self.file.keys())
         self.length = len(self.keys)
