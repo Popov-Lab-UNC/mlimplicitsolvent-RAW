@@ -55,7 +55,7 @@ def add_gbn_params():
                     continue
 
                 force = GBSAGBn2Force(cutoff=None,SA="ACE")
-                gbn2_params = force.getStandardParameters(topology).shape
+                gbn2_params = force.getStandardParameters(topology)
 
                 out_group = h5_file.create_group(key)
                 in_group = dataset.file[key]
