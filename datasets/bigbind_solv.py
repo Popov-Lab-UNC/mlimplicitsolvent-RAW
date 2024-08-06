@@ -44,12 +44,12 @@ class BigBindSolvDataset(Dataset):
         electrostatics_derivative = group["electrostatics_derivatives"][frame_idx]
 
 
-        gbn2_params = group["gbn2_params"][:]
-        gbn_gnn_data = np.concatenate([q[:,None], gbn2_params], axis=-1)
+        # gbn2_params = group["gbn2_params"][:]
+        # gbn_gnn_data = np.concatenate([q[:,None], gbn2_params], axis=-1)
 
         return MDData(
             charges=torch.tensor(q, dtype=torch.float32),
-            gbn_gnn_data=torch.tensor(gbn_gnn_data, dtype=torch.float32),
+            # gbn_gnn_data=torch.tensor(gbn_gnn_data, dtype=torch.float32),
             positions=torch.tensor(positions, dtype=torch.float32),
             atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
             forces=torch.tensor(forces, dtype=torch.float32),
