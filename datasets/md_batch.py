@@ -19,6 +19,8 @@ class MDData(ter.Batchable):
     sterics_derivative: torch.Tensor
     electrostatics_derivative: torch.Tensor
 
+    gbn_gnn_data: torch.Tensor
+
     @staticmethod
     def get_batch_type():
         return MDBatch
