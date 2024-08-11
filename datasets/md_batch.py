@@ -9,15 +9,18 @@ class MDData(ter.Batchable):
     """ Stores all the data we need for training
     the neural network """
     
-    positions: torch.Tensor
+    pos: torch.Tensor
     charges: torch.Tensor
     atomic_numbers: torch.Tensor
     forces: torch.Tensor
-    atom_features: torch.Tensor
+
     lambda_sterics: torch.Tensor
     lambda_electrostatics: torch.Tensor
     sterics_derivative: torch.Tensor
     electrostatics_derivative: torch.Tensor
+
+    atom_features: torch.Tensor
+
     @staticmethod
     def get_batch_type():
         return MDBatch
@@ -41,11 +44,11 @@ class MDBatch(ter.BatchBase[MDData]):
             setattr(self, key, collated)
 
         # create batch tensor
-        self.batch = torch.zeros(self.positions.shape[0], dtype=torch.long)
+        self.batch = torch.zeros(self.pos.shape[0], dtype=torch.long)
         cur_idx = 0
         for i, item in enumerate(items):
-            self.batch[cur_idx:cur_idx+len(item.positions)] = i
-            cur_idx += len(item.positions)
+            self.batch[cur_idx:cur_idx+len(item.pos)] = i
+            cur_idx += len(item.pos)
 
     def asdict(self):
         """ Convert to dict """
