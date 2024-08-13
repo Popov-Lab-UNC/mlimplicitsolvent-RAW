@@ -285,13 +285,11 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         # Add SA term
         energies = energies + sa_energies
         
-
-        energies = (l_sterics + l_electrostatics)*energies
         grad_output = torch.ones_like(energies.sum())
         # Return prediction and Gradients with respect to data
-        gradients_f = torch.autograd.grad(energies,grad_outputs=grad_output, inputs=data.pos, create_graph=True, retain_graph = True)[0]
-        gradients_sterics = torch.autograd.grad(energies, grad_outputs=grad_output, inputs = l_sterics, create_graph = True, retain_graph = True)[0]
-        gradients_electrostatics = torch.autograd.grad(energies, grad_outputs=grad_output, inputs = l_electrostatics, create_graph = True, retain_graph = True)[0]
+        gradients_f = torch.autograd.grad(energies.sum(),grad_outputs=grad_output, inputs=data.pos, create_graph=True, retain_graph = True)[0]
+        gradients_sterics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_sterics, create_graph = True, retain_graph = True)[0]
+        gradients_electrostatics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_electrostatics, create_graph = True, retain_graph = True)[0]
         forces = -1 * gradients_f
         if self._nobatch:
             energy = energies.sum()
