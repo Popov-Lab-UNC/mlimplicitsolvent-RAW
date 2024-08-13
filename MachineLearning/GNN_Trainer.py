@@ -129,7 +129,7 @@ class Trainer:
 
         return loss
 
-    def wandblog(self, WANDB_PROJ_NAME, BATCH_SIZE, CLIP, INITIAL_LEARNING_RATE, EPOCHS):
+    def wandblog(self, WANDB_PROJ_NAME, BATCH_SIZE, CLIP, EPOCHS):
         run = wandb.init(
             project = WANDB_PROJ_NAME,
             config = {
