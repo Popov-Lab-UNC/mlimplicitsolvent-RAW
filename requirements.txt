@@ -1,3 +1,5 @@
 wandb
 omegaconf
 terrace
+numba
+mdtraj

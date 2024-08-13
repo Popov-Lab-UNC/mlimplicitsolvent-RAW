@@ -6,6 +6,7 @@ import numpy as np
 import os
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 from config import CONFIG
+from torch_geometric.data import Data
 
 class BigBindSolvDataset(Dataset):
     """ This dataset returns the charges, positions, atomic numbers,
@@ -20,21 +21,24 @@ class BigBindSolvDataset(Dataset):
         self.frame_index = frame_index
         
     def __len__(self):
-        return self.length
+        return self.length*self.frame_index
     
     def __getitem__(self, index):
+        index_mod = index % self.length
+        group = self.file[self.keys[index_mod]]
 
-        group = self.file[self.keys[index]]
+
+
         q = group["charges"][:]
         all_positions = group["positions"][:]
         atomic_numbers = group["atomic_numbers"][:]
         all_forces = group["solv_forces"][:]
 
         # choose a random frame from the simulation
-        if self.frame_index is None:
+        if self.frame_index is None or (all_positions.shape[0] < self.frame_index):
             frame_idx = torch.randint(0, all_positions.shape[0], (1,)).item()
         else:
-            frame_idx = self.frame_index
+            frame_idx = (index % self.frame_index)
 
         positions = all_positions[frame_idx]
         forces = all_forces[frame_idx]
@@ -50,14 +54,15 @@ class BigBindSolvDataset(Dataset):
         
         # smh the force itself has some derived parameters
         force = GBSAGBn2Force(cutoff=None, SA="ACE", soluteDielectric=1.0)
-        force.addParticles(pre_params)
+        force.addParticles(pre_params)  
         force.finalize()
-        gbn_gnn_data = torch.tensor([ force.getParticleParameters(i) for i in range(force.getNumParticles()) ], dtype=torch.float32)
-
-        return MDData(
+        gbn_gnn_data = np.concatenate([[ force.getParticleParameters(i) for i in range(force.getNumParticles())], 
+                                       torch.full((positions.shape[0], 1), lambda_electrostatics), 
+                                       torch.full((positions.shape[0], 1), lambda_sterics)], axis = -1)
+        return Data(
             charges=torch.tensor(q, dtype=torch.float32),
-            gbn_gnn_data=gbn_gnn_data,
-            positions=torch.tensor(positions, dtype=torch.float32),
+            atom_features=torch.tensor(gbn_gnn_data,dtype=torch.float32),
+            pos=torch.tensor(positions, dtype=torch.float32),
             atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
             forces=torch.tensor(forces, dtype=torch.float32),
             lambda_sterics=torch.tensor(lambda_sterics, dtype=torch.float32),
