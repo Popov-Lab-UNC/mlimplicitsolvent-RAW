@@ -1,0 +1,9 @@
+cache
+!cache/.gitkeep
+output
+!output/.gitkeep
+*.pyc
+__pycache__/
+notebooks
+configs/local.yaml
+wandb

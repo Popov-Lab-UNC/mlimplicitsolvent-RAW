@@ -18,9 +18,8 @@ class MDData(ter.Batchable):
     lambda_electrostatics: torch.Tensor
     sterics_derivative: torch.Tensor
     electrostatics_derivative: torch.Tensor
-
     atom_features: torch.Tensor
-
+    
     @staticmethod
     def get_batch_type():
         return MDBatch
@@ -61,4 +60,11 @@ class MDBatch(ter.BatchBase[MDData]):
             val_str = _batch_repr(val).replace("\n", "\n" + indent)
             ret += indent +  f"{key}={val_str}\n"
         ret += ")"
+        return ret
+
+    def to(self, device):
+        """ Move to device """
+        ret = MDBatch.__new__(MDBatch)
+        for key, val in self.asdict().items():
+            setattr(ret, key, val.to(device))
         return ret
