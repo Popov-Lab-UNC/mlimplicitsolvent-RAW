@@ -261,8 +261,12 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         _, edge_index, edge_attributes = self.build_graph(data)
         _, gnn_edge_index, gnn_edge_attributes = self.build_gnn_graph(data)
         x = data.atom_features
-        l_electrostatics = x[:,7].requires_grad_(True)
-        l_sterics = x[:,8].requires_grad_(True)
+
+        lambda_sterics = data.lambda_sterics.requires_grad_(True)
+        lambda_electrostatics = data.lambda_electrostatics.requires_grad_(True)
+
+        l_electrostatics = lambda_electrostatics[data.batch]
+        l_sterics = lambda_sterics[data.batch]
         # Do message passing
         Bc = self.aggregate_information(x=x, edge_index=edge_index, edge_attributes=edge_attributes)  # B and charges
         
@@ -300,8 +304,9 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         elec_energies = self.calculate_energies(x=Bc, edge_index=edge_index, edge_attributes=edge_attributes)
 
         # need to ensure that the energies are 0 when lambdas are 0
-        sterics_scale = self.sterics_ff(data.lambda_sterics.unsqueeze(1))*data.lambda_sterics
-        electrostatics_scale = self.electrostatics_ff(data.lambda_electrostatics.unsqueeze(1))*data.lambda_electrostatics
+
+        sterics_scale = self.sterics_ff(lambda_sterics.unsqueeze(1))*lambda_sterics
+        electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.unsqueeze(1))*lambda_electrostatics
 
         # Add SA term
         energies = elec_energies*electrostatics_scale[data.batch] + sa_energies*sterics_scale[data.batch]
