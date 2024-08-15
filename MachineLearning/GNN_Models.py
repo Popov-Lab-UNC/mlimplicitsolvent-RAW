@@ -8,6 +8,7 @@ from torch_geometric.transforms import RadiusGraph
 from torch_geometric.nn import radius_graph
 from torch.nn import PairwiseDistance
 import torch
+import torch.nn.functional as F 
 from torch import nn
 from torch_scatter import scatter
 from torch_sparse import SparseTensor
@@ -217,6 +218,9 @@ class _GNN_fix_cuda:
         else:
             super().to(*args, **kwargs)
 
+
+
+
 class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_separate_SA(GNN_GBNeck_2,GNN_Grapher_2):
 
     def __init__(self,fraction=0.5,radius=0.4, max_num_neighbors=32, parameters=None, device=None, jittable=False,unique_radii=None, hidden=128):
@@ -252,6 +256,10 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             nn.Linear(CONFIG.electrostatics_hidden_dim,1),
             nn.Sigmoid()
         )
+
+    def GaussianBlur(x, kernel_size = CONFIG.kernel, sigma = CONFIG.sigma):
+        #x = F.gaussianblur
+        return x
 
     def forward(self, data):
         
