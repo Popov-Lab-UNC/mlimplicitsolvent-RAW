@@ -24,6 +24,9 @@ class BigBindSolvDataset(Dataset):
         return self.length*self.frame_index
     
     def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Index out of bounds")
+
         index_mod = index % self.length
         group = self.file[self.keys[index_mod]]
 
@@ -59,6 +62,7 @@ class BigBindSolvDataset(Dataset):
         gbn_gnn_data = np.concatenate([[ force.getParticleParameters(i) for i in range(force.getNumParticles())], 
                                        torch.full((positions.shape[0], 1), lambda_electrostatics), 
                                        torch.full((positions.shape[0], 1), lambda_sterics)], axis = -1)
+        
         return Data(
             charges=torch.tensor(q, dtype=torch.float32),
             atom_features=torch.tensor(gbn_gnn_data,dtype=torch.float32),

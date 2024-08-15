@@ -6,3 +6,4 @@ output
 __pycache__/
 notebooks
 configs/local.yaml
+wandb

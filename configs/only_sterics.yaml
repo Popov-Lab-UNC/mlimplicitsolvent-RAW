@@ -1,0 +1,7 @@
+
+loss:
+  force_weight: 0.0
+  sterics_weight: 1.0
+  electrostatics_weight: 0.0
+
+name: only_sterics

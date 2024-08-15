@@ -61,3 +61,10 @@ class MDBatch(ter.BatchBase[MDData]):
             ret += indent +  f"{key}={val_str}\n"
         ret += ")"
         return ret
+
+    def to(self, device):
+        """ Move to device """
+        ret = MDBatch.__new__(MDBatch)
+        for key, val in self.asdict().items():
+            setattr(ret, key, val.to(device))
+        return ret
