@@ -160,7 +160,10 @@ class Trainer:
                 ldata = ldata.to(self._device)
                 # Make prediction
                 pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata)
-                loss = self.calculate_loss(pre_energy=pre_energy, pre_forces=pre_forces, pre_sterics=pre_sterics, pre_electrostatics=pre_electrostatics, ldata=ldata)
+                mask_sterics = (ldata.lambda_sterics != 0.0) and (ldata.lambda_sterics != 1.0)
+                mask_electrostatics = (ldata.lambda_electrostatics != 0.0) and (ldata.lambda_electrostatics != 1.0)
+
+                loss = self.calculate_loss(pre_energy=pre_energy, pre_forces=pre_forces, pre_sterics=pre_sterics, pre_electrostatics=pre_electrostatics, ldata=ldata, mask_sterics = mask_sterics, mask_electrostatics = mask_electrostatics)
                 total_loss.append(loss.item())
                 assert torch.isnan(loss).sum() == 0
                 loss.backward()
@@ -176,8 +179,8 @@ class Trainer:
             Val_Losses.append(self.validate_model(batch_size=batch_size))
             print("Run %i avg time: %f3 vaL_loss: %f3 training_loss: %f3" % (i, (time.time() - start) / (len(loader)), np.mean(Val_Losses[-1]), np.mean(total_loss)),  end="\n",flush=True)
             self._scheduler.step()
-            wandb.log({f"{self._name} TRAINING LOSS AGGREGATE": np.mean(Val_Losses[-1])})
-            wandb.log({f"{self._name} TRAINING LOSS FORCES": np.mean(total_loss)})
+            wandb.log({f"{self._name} VALIDATION LOSS": np.mean(Val_Losses[-1])})
+            wandb.log({f"{self._name} TRAINING LOSS": np.mean(total_loss)})
 
         self.save_training_log([], Val_Losses)
 

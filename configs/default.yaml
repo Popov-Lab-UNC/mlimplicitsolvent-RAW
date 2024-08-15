@@ -1,2 +1,18 @@
+batch_size: 128
+learn_rate: 1e-5
+num_epochs: 10
+clip_gradients: 0
+lr_scheduler: '' # no learning rate scheduler
 
-batch_size: 8
+logging_freq: 20
+
+sterics_hidden_dim: 64
+electrostatics_hidden_dim: 64
+
+loss:
+  force_weight: 1.0
+  sterics_weight: 1.0
+  electrostatics_weight: 1.0
+
+name: default
+use_wandb: True

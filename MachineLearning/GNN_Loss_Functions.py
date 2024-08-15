@@ -6,10 +6,10 @@ import torch
 import torch.nn.functional as F
 from sklearn.metrics import mean_squared_error
 
-def calculate_force_loss_only(pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata):
+def calculate_force_loss_only(pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics):
     loss_f = F.mse_loss(pre_forces, ldata.forces)
-    loss_sterics = F.mse_loss(pre_sterics, ldata.sterics_derivative)
-    loss_elec = F.mse_loss(pre_electrostatics, ldata.electrostatics_derivative)
+    loss_sterics = F.mse_loss(pre_sterics[mask_sterics], ldata.sterics_derivative[mask_sterics])
+    loss_elec = F.mse_loss(pre_electrostatics[mask_electrostatics], ldata.electrostatics_derivative[mask_electrostatics])
     return loss_f + loss_sterics + loss_elec
 
 def calculate_force_loss_per_molecule(pre_energy,pre_forces,ldata):
