@@ -1,4 +1,4 @@
-
+bigbind_solv_dir: /work/users/r/d/rdey/BigBindSolvV2/BigBindSolvV2
 batch_size: 128
 learn_rate: 1e-5
 num_epochs: 10
@@ -16,4 +16,4 @@ loss:
   electrostatics_weight: 1.0
 
 name: default
-use_wandb: True
+use_wandb: False

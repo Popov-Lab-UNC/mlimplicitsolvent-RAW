@@ -191,8 +191,9 @@ class Trainer:
                 pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
                     ldata
                 )
-                mask_sterics = (ldata.lambda_sterics != 0.0) and (ldata.lambda_sterics != 1.0)
-                mask_electrostatics = (ldata.lambda_electrostatics != 0.0) and (ldata.lambda_electrostatics != 1.0)
+                mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
+                print(mask_sterics.shape)
+                mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
                 loss, metric_dict = self.calculate_loss(
                     pre_energy=pre_energy,
                     pre_forces=pre_forces,
