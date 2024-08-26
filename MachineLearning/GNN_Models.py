@@ -14,6 +14,7 @@ from torch_scatter import scatter
 from torch_sparse import SparseTensor
 from typing import Union, Tuple, Any, Callable, Iterator, Set, Optional, overload, TypeVar, Mapping, Dict, List
 from torch.cuda.amp import autocast
+from torch_geometric.data import Data
 
 T = TypeVar('T', bound='Module')
 
@@ -41,11 +42,12 @@ class GNN_GBNeck(torch.nn.Module):
             self._gbparameters = torch.tensor(parameters,dtype=torch.float,device=self._device)
         self._radius = radius
         self._max_num_neighbors = max_num_neighbors
+        
         self._grapher = RadiusGraph(r=self._radius, loop=False, max_num_neighbors=self._max_num_neighbors)
-
         # Init Distance Calculation
         self._distancer = PairwiseDistance()
         self._jittable = jittable
+
         if jittable:
             self.aggregate_information = GBNeck_interaction(parameters,self._device,unique_radii=unique_radii).jittable()
             self.calculate_energies = GBNeck_energies(parameters,self._device,unique_radii=unique_radii).jittable()
@@ -147,8 +149,8 @@ class GNN_GBNeck_2(GNN_GBNeck):
     def build_graph(self, data):
 
         # Get Radius Graph
-        graph = self._grapher(data)
 
+        graph = self._grapher(data)
         # Extract edge index
         edge_index = graph.edge_index
 
@@ -235,10 +237,12 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             self.interaction1 = IN_layer_all_swish_2pass(5 + 5, hidden,radius,device,hidden).jittable()
             self.interaction2 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
             self.interaction3 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
+            
         else:
             self.interaction1 = IN_layer_all_swish_2pass(5 + 5, hidden,radius,device,hidden)
             self.interaction2 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden)
             self.interaction3 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden)
+
 
         self._silu = torch.nn.SiLU()
         self.sigmoid = nn.Sigmoid()
@@ -247,44 +251,59 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             nn.Linear(1,CONFIG.sterics_hidden_dim),
             nn.SiLU(),
             nn.Linear(CONFIG.sterics_hidden_dim,1),
-            nn.Sigmoid()
+            
         )
 
         self.electrostatics_ff = nn.Sequential(
             nn.Linear(1,CONFIG.electrostatics_hidden_dim),
             nn.SiLU(),
             nn.Linear(CONFIG.electrostatics_hidden_dim,1),
-            nn.Sigmoid()
         )
+        self.gnn_params = None
+        self.energies = []
 
-    def GaussianBlur(x, kernel_size = CONFIG.kernel, sigma = CONFIG.sigma):
-        #x = F.gaussianblur
-        return x
+    def set_gnn_params(self, params):
+        self.gnn_params = params
+    
 
-    def forward(self, data):
+
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, batch = None, atom_features = None, vaccum = 1.0, testing = 0.0, ):
+
+        if vaccum:
+            positions *= 0
+            return forces
         
-        data.pos = data.pos.clone().detach().requires_grad_(True)
-
+        positions = positions.clone().detach().requires_grad_(True)
+        
         # Build Graph
+
+        data = Data(atom_features = atom_features, pos = positions, batch = batch)
         _, edge_index, edge_attributes = self.build_graph(data)
         _, gnn_edge_index, gnn_edge_attributes = self.build_gnn_graph(data)
-        x = data.atom_features
+        
+    
 
-        lambda_sterics = data.lambda_sterics.requires_grad_(True)
-        lambda_electrostatics = data.lambda_electrostatics.requires_grad_(True)
-
-        l_electrostatics = lambda_electrostatics[data.batch]
-        l_sterics = lambda_sterics[data.batch]
+        if torch.is_tensor(atom_features):
+            x = atom_features
+        elif self.gnn_params:
+            x = self.gnn_params
+        else:
+            raise Exception("No GNN Params Given")
+        
+        lambda_sterics = lambda_sterics.requires_grad_(True)
+        lambda_electrostatics = lambda_electrostatics.requires_grad_(True)
+        sterics_scale = self.sterics_ff(lambda_sterics.unsqueeze(1)) * lambda_sterics.view(-1, 1)
+        electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.unsqueeze(1)) * lambda_electrostatics.view(-1, 1)
+        l_electrostatics = sterics_scale[data.batch]
+        l_sterics = electrostatics_scale[data.batch]
+        #x[:,1] *= l_electrostatics.view(-1, )
         # Do message passing
         Bc = self.aggregate_information(x=x, edge_index=edge_index, edge_attributes=edge_attributes)  # B and charges
         
         # ADD small correction
-        Bcn = torch.concat((Bc,x[:,1].unsqueeze(1), l_sterics.unsqueeze(1), l_electrostatics.unsqueeze(1)
+        Bcn = torch.concat((Bc,x[:,1].unsqueeze(1), l_sterics, l_electrostatics
                             ),dim=1)
         
-
-        #
-        # x[:,7].unsqueeze(1), x[:,8].unsqueeze(1)
         Bcn = self.interaction1(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
         Bcn = self._silu(Bcn)
         Bcn = self.interaction2(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
@@ -313,11 +332,8 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
 
         # need to ensure that the energies are 0 when lambdas are 0
 
-        sterics_scale = self.sterics_ff(lambda_sterics.unsqueeze(1))*lambda_sterics
-        electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.unsqueeze(1))*lambda_electrostatics
-
         # Add SA term
-        energies = elec_energies*electrostatics_scale[data.batch] + sa_energies*sterics_scale[data.batch]
+        energies = elec_energies*l_electrostatics + sa_energies*l_sterics
         
         grad_output = torch.ones_like(energies.sum())
         # Return prediction and Gradients with respect to data
@@ -341,6 +357,10 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 sterics[batch] = gradients_sterics.view(-1, 1)[torch.where(data.batch == batch)].sum()
                 electrostatics[batch] = gradients_electrostatics.view(-1, 1)[torch.where(data.batch == batch)].sum()
 
+
+        if testing:
+            self.energies.append(energy)
+            return forces
         return energy, forces, sterics, electrostatics
 
 class GNN3_scale_128(GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_separate_SA):

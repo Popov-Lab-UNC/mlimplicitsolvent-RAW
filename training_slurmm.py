@@ -5,7 +5,7 @@ slurm = Slurm(job_name = "GNNRun",
               gres = 'gpu:1',
               qos = 'gpu_access', 
               mem = "16g", 
-              time=datetime.timedelta(days=1, hours=2, minutes=3, seconds=4), 
+              time=datetime.timedelta(days=0, hours=2, minutes=3, seconds=4), 
               cpus_per_task=1, 
               )
 

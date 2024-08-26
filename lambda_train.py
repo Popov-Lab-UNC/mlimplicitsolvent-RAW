@@ -295,6 +295,10 @@ def train():
             lambdaElecTrue = batch.electrostatics_derivative.to(device)
             lambdaStericsTrue = batch.sterics_derivative.to(device)
 
+
+            lambda_mask_elec = (lambdaElec != 0.0) & (lambdaElec != 1.0)
+            lambda_mask_ster = (lambdaSterics != 0.0) & (lambdaSterics != 1.0)
+
             y_true = batch.forces.to(device)
 
             
@@ -328,8 +332,8 @@ def train():
                     filter_predicted.append(negdy[mask].detach().cpu().numpy().flatten())
 
                 lossdy = criterion(negdy, y_true)
-                loss_elec = criterion(dElectrostatics,lambdaElecTrue) 
-                loss_ster = criterion(dSterics, lambdaStericsTrue)
+                loss_elec = criterion(dElectrostatics[lambda_mask_elec],lambdaElecTrue[lambda_mask_elec]) 
+                loss_ster = criterion(dSterics[lambda_mask_ster], lambdaStericsTrue[lambda_mask_ster])
                 loss = lossdy*LOSS_COEFFICIENT_DY + loss_elec*LOSS_COEFFICIENT_ELECTROSTATICS + loss_ster*LOSS_COEFFICIENT_STERICS
                 
             loss.backward()
@@ -433,6 +437,10 @@ def train():
             lambdaStericsGrad = batch.lambda_sterics.requires_grad_().to(device)
             lambdaElecTrue = batch.electrostatics_derivative.to(device)
             lambdaStericsTrue = batch.sterics_derivative.to(device)
+
+            lambda_mask_elec = (lambdaElecGrad != 0.0) & (lambdaElecGrad != 1.0)
+            lambda_mask_ster = (lambdaStericsGrad != 0.0) & (lambdaStericsGrad != 1.0)
+
             y_true = batch.forces.to(device)
             val_true_ys.append(y_true.detach().cpu().numpy().flatten())
             l_sterics_true.append(lambdaStericsTrue.cpu().view(-1,1).numpy())
@@ -455,8 +463,8 @@ def train():
             
             if not DISABLE_LAMBDA: 
                 lossdy = criterion(negdy, y_true)
-                loss_elec = criterion(dElectrostatics, lambdaElecTrue) 
-                loss_ster = criterion(dSterics, lambdaStericsTrue)
+                loss_elec = criterion(dElectrostatics[lambda_mask_elec], lambdaElecTrue[lambda_mask_elec]) 
+                loss_ster = criterion(dSterics[lambda_mask_ster], lambdaStericsTrue[lambda_mask_ster])
                 loss = lossdy*LOSS_COEFFICIENT_DY + loss_elec*LOSS_COEFFICIENT_ELECTROSTATICS + loss_ster*LOSS_COEFFICIENT_STERICS
 
             running_loss += loss.item()

@@ -17,6 +17,7 @@ import os, sys
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import wandb
+import matplotlib.pyplot as plt
 
 try:
     from GNN_Models import *
@@ -76,7 +77,7 @@ class Trainer:
         self._use_tmpdir = enable_tmp_dir
         self._tmpdir_in_use = False
         self._explicit_data = False
-
+        self.check = []
         self._model_path = self._path + "/" + self._name + "model.model"
 
     def set_lossfunction(self, lossfunction=None):
@@ -189,10 +190,9 @@ class Trainer:
                 ldata = ldata.to(self._device)
                 # Make prediction
                 pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
-                    ldata
+                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, ldata.batch, ldata.atom_features, False, False
                 )
                 mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
-                print(mask_sterics.shape)
                 mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
                 loss, metric_dict = self.calculate_loss(
                     pre_energy=pre_energy,
@@ -203,6 +203,15 @@ class Trainer:
                     mask_sterics = mask_sterics, 
                     mask_electrostatics = mask_electrostatics
                 )
+                '''
+                if metric_dict["sterics_loss"] > 20000:
+                    print(ldata.lambda_sterics[mask_sterics], 
+                        ldata.sterics_derivative[mask_sterics], 
+                        pre_sterics[mask_sterics], 
+                        metric_dict["sterics_loss"],
+                        metric_dict["force_loss"],
+                        )
+                '''
                 total_loss.append(loss.item())
                 assert torch.isnan(loss).sum() == 0
                 loss.backward()
@@ -386,16 +395,27 @@ class Trainer:
         np.save(arr=train_loss, file=save_path + "train_loss.txt")
         np.save(arr=val_loss, file=save_path + "val_loss.txt")
 
+    
+
     def validate_model(self, batch_size):
         metrics = self.create_metrics()
         loader = DataLoader(self._validation_data, batch_size=batch_size)
         losses = defaultdict(list)
+        derivatives = []
+        lambdas = []
         for l, ldata in enumerate(tqdm(loader)):
             ldata.to(self._device)
-            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata)
+            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
+                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, ldata.batch, ldata.atom_features, False, False
+                )
+            mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
+            mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
             loss, loss_dict = self.calculate_loss(
-                pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata
+                pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics
             )
+
+            lambdas.append(ldata.lambda_electrostatics.detach().to('cpu'))
+            derivatives.append(pre_electrostatics.detach().to('cpu'))
             for key, value in loss_dict.items():
                 losses[key].append(value.item())
             self.update_metrics(
@@ -407,6 +427,7 @@ class Trainer:
                 ldata,
             )
 
+
         results = {
             key: np.mean(value) for key, value in losses.items()
         }
@@ -416,7 +437,8 @@ class Trainer:
                 for key in metrics.keys()
             }
         )
-
+        plt.scatter(np.concatenate(lambdas), np.concatenate(derivatives))
+        plt.savefig("hi.png")
         return results
 
     def test_model(self, batch_size=32, return_predictions=False):
