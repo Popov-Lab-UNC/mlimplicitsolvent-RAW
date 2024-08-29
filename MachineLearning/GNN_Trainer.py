@@ -78,7 +78,7 @@ class Trainer:
         self._tmpdir_in_use = False
         self._explicit_data = False
         self.check = []
-        self._model_path = self._path + "/" + self._name + "model.model"
+        self._model_path = self._path + "/" + self._name + ".pt"
 
     def set_lossfunction(self, lossfunction=None):
 
@@ -1738,12 +1738,12 @@ class Trainer:
 
     def save_model(self):
 
-        torch.save(self._model, self._path + "/" + self._name + "model.model")
+        torch.save(self._model, self._path + "/" + self._name + ".pt")
 
     @property
     def model_path(self):
 
-        return self._path + "/" + self._name + "model.model"
+        return self._path + "/" + self._name + ".pt"
 
     def save_dict(self):
         self._model.eval()
@@ -1759,8 +1759,8 @@ class Trainer:
 
     def load_model(self, path=None):
         if path is None:
-            assert os.path.isfile(self._path + "/" + self._name + "model.model")
-            self._model = torch.load(self._path + "/" + self._name + "model.model")
+            assert os.path.isfile(self._path + "/" + self._name + ".pt")
+            self._model = torch.load(self._path + "/" + self._name + ".pt")
         else:
             self._model = torch.load(path)
         # self._model.eval()

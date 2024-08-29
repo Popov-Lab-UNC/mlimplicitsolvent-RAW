@@ -260,7 +260,6 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             nn.Linear(CONFIG.electrostatics_hidden_dim,1),
         )
         self.gnn_params = None
-        self.energies = []
 
     def set_gnn_params(self, params):
         self.gnn_params = params
@@ -359,7 +358,6 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
 
 
         if testing:
-            self.energies.append(energy)
             return forces
         return energy, forces, sterics, electrostatics
 

@@ -1,7 +1,7 @@
 bigbind_solv_dir: /work/users/r/d/rdey/BigBindSolvV2/BigBindSolvV2
 batch_size: 128
 learn_rate: 1e-3
-num_epochs: 10
+num_epochs: 2
 clip_gradients: 1
 lr_scheduler: 'Exponential30' # no learning rate scheduler
 

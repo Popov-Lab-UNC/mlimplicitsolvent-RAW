@@ -45,4 +45,5 @@ trainer.train_model(
 )
 
 trainer.save_model()
+trainer.save_dict()
 
