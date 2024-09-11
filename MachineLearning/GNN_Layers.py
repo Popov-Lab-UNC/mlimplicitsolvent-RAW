@@ -260,15 +260,13 @@ class GBNeck_interaction(MessagePassing):
         neckCut = 0.68
         offset = 0.0195141
         # x features = [charge,or,sr,alpha,beta,gamma,radindex]
-        or1 = x_i[:,1]
-        sr1 = x_i[:,2]
+        or1 = x_i[:,1].to(torch.float32)
+        sr1 = x_i[:,2].to(torch.float32)
         radindex1 = x_i[:,6].to(dtype=torch.int,device=self._device)
-        or2 = x_j[:,1]
-        sr2 = x_j[:,2]
-        l_sterics = x_j[:,8]
-        l_electrostatics = x_j[:,7]
+        or2 = x_j[:,1].to(torch.float32)
+        sr2 = x_j[:,2].to(torch.float32)
         radindex2 = x_j[:,6].to(dtype=torch.int,device=self._device)
-        r = edge_attributes[:,0]
+        r = edge_attributes[:,0].to(torch.float32)
 
         radius2 = or2 + offset
         radius1 = or1 + offset

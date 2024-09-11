@@ -190,7 +190,7 @@ class Trainer:
                 ldata = ldata.to(self._device)
                 # Make prediction
                 pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
-                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, ldata.batch, ldata.atom_features, False, False
+                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,
                 )
                 mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
                 mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
@@ -406,7 +406,7 @@ class Trainer:
         for l, ldata in enumerate(tqdm(loader)):
             ldata.to(self._device)
             pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
-                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, ldata.batch, ldata.atom_features, False, False
+                   ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,
                 )
             mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
             mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)

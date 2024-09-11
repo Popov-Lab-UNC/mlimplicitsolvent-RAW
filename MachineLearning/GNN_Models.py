@@ -227,9 +227,9 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
 
     def __init__(self,fraction=0.5,radius=0.4, max_num_neighbors=32, parameters=None, device=None, jittable=False,unique_radii=None, hidden=128):
 
-        gbneck_radius = 10.0
+        self.gbneck_radius = 10.0
         self._gnn_radius = radius
-        GNN_GBNeck_2.__init__(self,radius=gbneck_radius, max_num_neighbors=max_num_neighbors, parameters=parameters, device=device, jittable=jittable,unique_radii=unique_radii)
+        GNN_GBNeck_2.__init__(self,radius=self.gbneck_radius, max_num_neighbors=max_num_neighbors, parameters=parameters, device=device, jittable=jittable,unique_radii=unique_radii)
         GNN_Grapher_2.__init__(self,radius=radius, max_num_neighbors=max_num_neighbors)
 
         self._fraction = fraction
@@ -261,46 +261,46 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         )
         self.gnn_params = None
 
-    def set_gnn_params(self, params):
-        self.gnn_params = params
+
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
+
+        positions = positions.requires_grad_(True).to(torch.float32)
     
 
-
-    def forward(self, positions, lambda_sterics, lambda_electrostatics, batch = None, atom_features = None, vaccum = 1.0, testing = 0.0, ):
-
-        if vaccum:
-            positions *= 0
-            return forces
-        
-        positions = positions.clone().detach().requires_grad_(True)
+        if vaccum.item() == 1.0:
+                return (torch.scalar_tensor(0), torch.zeros_like(positions))
         
         # Build Graph
+        edge_index = radius_graph(x = positions, r = self.gbneck_radius, batch = batch, 
+                                                      max_num_neighbors=self._max_num_neighbors)
+        edge_attributes = self._distancer(positions[edge_index[0]], positions[edge_index[1]]).unsqueeze(1).to(torch.float32)
+        gnn_edge_index = radius_graph(x = positions, r = self._gnn_radius, batch = batch, 
+                                                        max_num_neighbors = self._max_num_neighbors)
+        gnn_edge_attributes = self._distancer(positions[gnn_edge_index[0]], positions[gnn_edge_index[1]]).unsqueeze(1).to(torch.float32)
 
-        data = Data(atom_features = atom_features, pos = positions, batch = batch)
-        _, edge_index, edge_attributes = self.build_graph(data)
-        _, gnn_edge_index, gnn_edge_attributes = self.build_gnn_graph(data)
-        
-    
+        if batch is None:
+            batch = torch.zeros(size=(len(positions), 1)).to(torch.long)
 
-        if torch.is_tensor(atom_features):
+        if self.gnn_params is not None:
+            x = self.gnn_params.to(torch.float32)
+        elif torch.is_tensor(atom_features):
             x = atom_features
-        elif self.gnn_params:
-            x = self.gnn_params
         else:
             raise Exception("No GNN Params Given")
         
+        
+        
         lambda_sterics = lambda_sterics.requires_grad_(True)
         lambda_electrostatics = lambda_electrostatics.requires_grad_(True)
-        sterics_scale = self.sterics_ff(lambda_sterics.unsqueeze(1)) * lambda_sterics.view(-1, 1)
-        electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.unsqueeze(1)) * lambda_electrostatics.view(-1, 1)
-        l_electrostatics = sterics_scale[data.batch]
-        l_sterics = electrostatics_scale[data.batch]
-        #x[:,1] *= l_electrostatics.view(-1, )
-        # Do message passing
+        sterics_scale = self.sterics_ff(lambda_sterics.view(-1, 1)) * lambda_sterics.view(-1, 1)
+        electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.view(-1, 1)) * lambda_electrostatics.view(-1, 1)
+        l_electrostatics = sterics_scale[batch]
+        l_sterics = electrostatics_scale[batch]
+
         Bc = self.aggregate_information(x=x, edge_index=edge_index, edge_attributes=edge_attributes)  # B and charges
         
         # ADD small correction
-        Bcn = torch.concat((Bc,x[:,1].unsqueeze(1), l_sterics, l_electrostatics
+        Bcn = torch.concat((Bc,x[:,1].view(-1, 1), l_sterics.view(-1, 1), l_electrostatics.view(-1, 1)
                             ),dim=1)
         
         Bcn = self.interaction1(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
@@ -334,12 +334,32 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         # Add SA term
         energies = elec_energies*l_electrostatics + sa_energies*l_sterics
         
-        grad_output = torch.ones_like(energies.sum())
-        # Return prediction and Gradients with respect to data
-        gradients_f = torch.autograd.grad(energies.sum(),grad_outputs=grad_output, inputs=data.pos, create_graph=True, retain_graph = True)[0]
-        gradients_sterics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_sterics, create_graph = True, retain_graph = True)[0]
-        gradients_electrostatics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_electrostatics, create_graph = True, retain_graph = True)[0]
-        forces = -1 * gradients_f
+
+        # comment everything below for JIT
+        energy = energies.sum()
+        grad_output: Optional[List[Optional[torch.Tensor]]] = [torch.ones_like(energies.sum())]
+        gf= torch.autograd.grad([energy], grad_outputs=grad_output, inputs = [positions], create_graph = True, retain_graph = True)[0]
+
+
+        #'''
+        #============================================================= JIT SECTION ============================
+        
+        if gf is not None:
+            forces = torch.neg(gf)
+            return (energy, forces)
+        else: 
+            return (energy * 0, torch.zeros_like(positions))
+    
+    
+    
+        '''
+        #============================================================= JIT SECTION ============================
+        #===============================================TRAINING SECTION ======================================
+        gradients_sterics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_sterics], create_graph = True, retain_graph = True)[0]
+        gradients_electrostatics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_electrostatics], create_graph = True, retain_graph = True)[0]
+        forces = -gf
+        
+        
         if self._nobatch:
             energy = energies.sum()
             energy = energy.unsqueeze(0)
@@ -347,19 +367,19 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             sterics = gradients_sterics.sum()
             electrostatics = gradients_electrostatics.sum()
         else:
-            energy = torch.empty((torch.max(data.batch) + 1, 1), device=self._device)
-            sterics = torch.empty((torch.max(data.batch) + 1, 1), device=self._device)
-            electrostatics = torch.empty((torch.max(data.batch) + 1, 1), device=self._device)
-            for batch in data.batch.unique():
-                mask = data.batch == batch
-                energy[batch] = energies[torch.where(data.batch == batch)].sum()
-                sterics[batch] = gradients_sterics.view(-1, 1)[torch.where(data.batch == batch)].sum()
-                electrostatics[batch] = gradients_electrostatics.view(-1, 1)[torch.where(data.batch == batch)].sum()
+            energy = torch.empty((torch.max(batch) + 1, 1), device=self._device)
+            sterics = torch.empty((torch.max(batch) + 1, 1), device=self._device)
+            electrostatics = torch.empty((torch.max(batch) + 1, 1), device=self._device)
+            for curr in batch.unique():
+                energy[batch] = energies[torch.where(batch == curr)].sum()
+                sterics[batch] = gradients_sterics.view(-1, 1)[torch.where(batch == curr)].sum()
+                electrostatics[batch] = gradients_electrostatics.view(-1, 1)[torch.where(batch == curr)].sum()
 
 
-        if testing:
-            return forces
         return energy, forces, sterics, electrostatics
+        #===============================================TRAINING SECTION ======================================
+        #'''
+
 
 class GNN3_scale_128(GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_separate_SA):
 

@@ -184,8 +184,14 @@ def simulate_row(row):
 
     reporter = SolvDatasetReporter(out_file, alc_system_vac, 500)
     simulation.reporters.append(reporter)
-
+    
     simulation.step(steps)
+
+
+
+def simulate_MAF_row(row):
+    return
+
 
 def simulate_slice(df, index, total_indices):
     """ Simulate everything within this current slice """
