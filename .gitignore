@@ -13,3 +13,5 @@ Hydration_Slurmm
 train.ipynb
 training_slurmm.py
 training_slurmm_ai_sim.py
+trained_models
+energy.txt
