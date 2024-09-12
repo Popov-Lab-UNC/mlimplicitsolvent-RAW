@@ -6,7 +6,7 @@ from openmmforcefields.generators import SMIRNOFFTemplateGenerator
 from openmmtorch import TorchForce
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 import torch
-from openmm import app, NonbondedForce, LangevinMiddleIntegrator
+from openmm import app, NonbondedForce, LangevinMiddleIntegrator, Platform
 from openmm.app import *
 import alchemlyb
 from alchemlyb.estimators import MBAR
@@ -43,6 +43,11 @@ class AI_Solvation_calc:
         self.report_interval = 1000
         self._T = 300*kelvin
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if(self.device == torch.device("cpu")):
+            self.platform = Platform.getPlatformByName('CPU')
+        else:
+            self.platform = Platform.getPlatformByName('CUDA')
+
         self.model_dict = torch.load(model_dict, map_location = self.device)
         tot_unique = [0.14, 0.117, 0.155, 0.15, 0.21, 0.185, 0.18, 0.17, 0.12, 0.13]
         self.model = GNN3_scale_96(max_num_neighbors=10000,
@@ -148,9 +153,8 @@ class AI_Solvation_calc:
             for idx in range(nbforces.getNumParticles()):
                 charge, sigma, epsilon = nbforces.getParticleParameters(idx)
                 nbforces.setParticleParameters(idx, new_charges[idx], sigma, epsilon)
-        
         integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds)
-        simulation = Simulation(self.topology, self.system, integrator)
+        simulation = Simulation(self.topology, self.system, integrator, platform= self.platform)
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics", lambda_electrostatics)
         simulation.context.setParameter("vaccum", vaccum)
@@ -181,10 +185,10 @@ class AI_Solvation_calc:
             positions = torch.from_numpy(coords).to(self.device)
 
             factor = self.model(positions, e_lambda_ster, e_lambda_elec, torch.tensor(0.0), None)
-            self.curr_simulation.context.setPositions(coords)
-            self.curr_simulation.minimizeEnergy()
-            U = self.curr_simulation.context.getState(getEnergy=True).getPotentialEnergy()  
-            val = ((factor[0].item() + U)*joules/mole)/(kB*self._T)
+            self.curr_simulation_vac.context.setPositions(coords)
+            self.curr_simulation_vac.minimizeEnergy()
+            U = self.curr_simulation_vac.context.getState(getEnergy=True).getPotentialEnergy()  
+            val = ((factor[0].item()*joules/mole + U))/(kB*self._T)
             u[idx] = float(val)
         return u
     
@@ -207,11 +211,8 @@ class AI_Solvation_calc:
 
 
         integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds)
-        self.curr_simulation = Simulation(self.topology, self.system, integrator)
-        self.curr_simulation.context.setParameter("vaccum", 1.0)
-
-
-
+        self.curr_simulation_vac = Simulation(self.topology, self.system, integrator, platform=self.platform)
+        self.curr_simulation_vac.context.setParameter("vaccum", 1.0)
 
         for (lambda_ster, lambda_elec) in self.get_solv_lambda_schedule():
             dcd_file = os.path.join(self.solv_path, f"({lambda_ster}-{lambda_elec})_{self.name}.dcd")
@@ -248,6 +249,10 @@ class AI_Solvation_calc:
 
         return solv_u_nk_df
      
+
+
+    #Note to self: As the ML does not remove the intramolecular forces, readding the vaccum forces to MBAR is irrelevant. This function
+    # is irrelevant.
     def vac_u_nk(self):
         cache_path = os.path.join(self.vac_path, f"{self.name}_u_nk.pkl")
         if os.path.exists(cache_path):
@@ -328,10 +333,12 @@ class AI_Solvation_calc:
         for lambda_ster in reversed(self.lambda_sterics):
             self.AI_simulation(lambda_ster, 0.0, vaccum = 0.0, out = f"({lambda_ster}-0.0)_{self.name}")
         solv_ster_time = time.time()
+
+        '''
         print(f" -- Time taken: {solv_ster_time - solv_elec_time} - Re-adding electrostatics in Vaccum -- ")
         for lambda_elec in self.lambda_electrostatics:
             self.AI_simulation(0.0, lambda_elec, vaccum = 1.0, out = f"{lambda_elec}_{self.name}")
-
+        '''
         print(f" -- Finished Simulation -- Vaccum Time: {time.time() - solv_ster_time}; Total Time: {time.time() - start} -- ")
 
     def compute_delta_F(self):
@@ -339,14 +346,14 @@ class AI_Solvation_calc:
         print(" -- Starting Calculation of Hydration Energy -- ")
         self.model.gnn_params = self.compute_atom_features() #idk why I am forced to do this but it helps for sum reason?
         solv = self.solv_u_nk()
-        vac = self.vac_u_nk()
-        mbar_vac = MBAR()
-        mbar_vac.fit(vac)
+        #vac = self.vac_u_nk()
+        #mbar_vac = MBAR()
+        #mbar_vac.fit(vac)
 
         mbar_solv = MBAR()
         mbar_solv.fit(solv) 
 
-        F_solv_kt = mbar_vac.delta_f_[0][1] - mbar_solv.delta_f_[(0,0)][(1,1)]
+        F_solv_kt = mbar_solv.delta_f_[(0,0)][(1,1)] #mbar_vac.delta_f_[0][1] - 
         F_solv = F_solv_kt*self._T*kB
 
         return F_solv
@@ -376,13 +383,19 @@ class runSims:
 
 
     
-
+import sys
 
 if __name__ == "__main__":
-    freesolv_calc = runSims('/work/users/r/d/rdey/ml_implicit_solvent/trained_models/HydrationChangesmodel.dict', "/work/users/r/d/rdey/trials")
-    df = FreesolvHelper("/work/users/r/d/rdey/ml_implicit_solvent/freesolv/SAMPL.csv")
-    res = df.smiles_reader()
-    res = [res[1]]
-    print(res)
-    freesolv_calc.run_all_smiles(res)
+
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/HydrationChangesmodel.dict'
+    
+    smile = str(sys.argv[1])
+    expt = float(sys.argv[2])
+    name = str(sys.argv[3])
+    path = '/work/users/r/d/rdey/trials'
+    print(f"Current: {name}, {smile}, {expt}")
+    obj = AI_Solvation_calc(model_dict=model_path, smiles=smile, path=path, name = name)
+    obj.run_all_sims(overwrite = False)
+    res = obj.compute_delta_F()
+    print(f"{name}, {res}, {expt}")
  
