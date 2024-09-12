@@ -8,3 +8,8 @@ notebooks
 configs/local.yaml
 wandb
 slurm_output
+hi.png
+Hydration_Slurmm
+train.ipynb
+training_slurmm.py
+training_slurmm_ai_sim.py
