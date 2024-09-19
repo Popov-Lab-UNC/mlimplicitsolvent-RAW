@@ -13,9 +13,9 @@ electrostatics_hidden_dim: 64
 
 
 loss:
-  force_weight: 2.0
+  force_weight: 1.0
   sterics_weight: 1.0
-  electrostatics_weight: 1.5
+  electrostatics_weight: 1.0
 
-name: HydrationChanges
-use_wandb: True
+name: FixedSterics
+use_wandb: False

@@ -18,7 +18,7 @@ from freesolv_helper import FreesolvHelper
 from MachineLearning.GNN_Models import GNN3_scale_96
 from tqdm import tqdm
 import mdtraj as md 
-
+import pickle as pkl
 from rdkit import Chem
 from rdkit.Chem import AllChem
 import time 
@@ -37,7 +37,7 @@ class AI_Solvation_calc:
     
 
     def __init__(self, model_dict, name ,smiles, path):
-        self.lambda_electrostatics= [0.0, 0.25, 0.5, 0.75, 1.0]
+        self.lambda_electrostatics= [0.0, 0.25, 0.5, 0.75, 1.0] 
         self.lambda_sterics = [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
         self.n_steps = 10000
         self.report_interval = 1000
@@ -121,6 +121,15 @@ class AI_Solvation_calc:
         '''Calculates the atom features needed for the GNN to function. the GB Force has derived parameters requiring 
         the derived function to pass through to calculate the radindex based on the GB radius
         '''
+        atom_features_path = os.path.join(self.path, f"{self.name}_gnn_params.pkl")
+
+        if os.path.exists(atom_features_path):
+            print("Found Existing Atom Features")
+            with open(atom_features_path, 'rb') as f:
+                data = pkl.load(f)
+
+            return data.to(self.device)
+
         print("Calculating Atom Features for GNN")
         force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1,solventDielectric=4)
         gnn_params = np.array(force.getStandardParameters(self.topology))
@@ -129,7 +138,14 @@ class AI_Solvation_calc:
         force.finalize()
         gbn2_parameters = np.array([ force.getParticleParameters(i) for i in range(force.getNumParticles())]) 
         print(f"Atom Features shape: {gbn2_parameters.shape}")
-        return torch.from_numpy(gbn2_parameters).to(self.device)
+
+        with open(atom_features_path, 'wb') as f:
+            pkl.dump(torch.from_numpy(gbn2_parameters), f)
+
+        with open(atom_features_path, 'rb') as f:
+                data = pkl.load(f)
+
+        return data.to(self.device)
     
     def AI_simulation(self, lambda_sterics, lambda_electrostatics, vaccum, out):
         assert self.vac_path
@@ -175,7 +191,6 @@ class AI_Solvation_calc:
         with open(com, 'w'):
             pass
 
-
  
     def calculate_energy_for_traj(self, traj, e_lambda_ster, e_lambda_elec):
         u = np.zeros(len(traj.time))
@@ -186,9 +201,11 @@ class AI_Solvation_calc:
 
             factor = self.model(positions, e_lambda_ster, e_lambda_elec, torch.tensor(0.0), None)
             self.curr_simulation_vac.context.setPositions(coords)
-            self.curr_simulation_vac.minimizeEnergy()
+            self.curr_simulation_vac.minimizeEnergy()   
             U = self.curr_simulation_vac.context.getState(getEnergy=True).getPotentialEnergy()  
-            val = ((factor[0].item()*joules/mole + U))/(kB*self._T)
+
+            print(U, factor[0].item())
+            val = ((factor[0].item()*kilojoule_per_mole + U))/(kB*self._T)
             u[idx] = float(val)
         return u
     
@@ -292,13 +309,16 @@ class AI_Solvation_calc:
         return vac_u_nk_df
        
     def run_all_sims(self, overwrite = False):
-        print(" -- Starting AI Simulation Hydration Calculations -- ")
+        print("-- Starting AI Simulation Hydration Calculations --")
 
 
         if overwrite:
-            print(" -- Overwriting Previous Records -- ")
-            shutil.rmtree(self.solv_path)
-            shutil.rmtree(self.vac_path)
+            print("-- Overwriting Previous Records --")
+            try:
+                shutil.rmtree(self.solv_path)
+                shutil.rmtree(self.vac_path)
+            except:
+                print("-- Files not Found / Nothing to Override; Continuing... --")
 
         if not os.path.exists(self.solv_path):
             os.mkdir(self.solv_path)
@@ -314,12 +334,17 @@ class AI_Solvation_calc:
 
         print("-- Setting System -- ")
         self.set_system(1.0)
+
         print("-- Setting Model -- ")
         self.set_model()
+
         print("-- Adding Model to System -- ")
         self.system.addForce(self.model_force)
+
         self.forces = { force.__class__.__name__ : force for force in self.system.getForces() }
         setup_time = time.time()
+
+        
         print(f" -- Finished Setup in {setup_time - start} seconds; Starting Simulation -- ")
 
 
@@ -374,7 +399,7 @@ class runSims:
             expt = val[1]
             print(f"Current Smile: {smile}, Expected Energy: {expt}")
             obj = AI_Solvation_calc(model_dict=self.model, smiles= smile, path = self.path, name = "Initial")
-            obj.run_all_sims(overwrite = True)
+            obj.run_all_sims(overwrite = False)
             res = obj.compute_delta_F()
             print(f"Calculated:{res}, Expected: {expt}")
             self.collect.append(res)
