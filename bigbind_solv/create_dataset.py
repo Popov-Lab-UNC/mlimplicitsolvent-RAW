@@ -23,6 +23,10 @@ from fep import LAMBDA_STERICS, LAMBDA_ELECTROSTATICS, set_fep_lambdas
 from freesolv import load_freesolv, smi_to_protonated_sdf
 from sim import make_alchemical_system
 import traceback
+from scipy import stats
+
+
+
 
 def get_parameter_derivative(simulation, param_name, dp=1e-5):
     """ 
@@ -31,6 +35,10 @@ def get_parameter_derivative(simulation, param_name, dp=1e-5):
     """
     context = simulation.context
     parameter = context.getParameter(param_name)
+
+
+    if (parameter == 1.0):
+        dp = -dp
 
     initial_energy = context.getState(getEnergy=True).getPotentialEnergy()
 
@@ -56,7 +64,7 @@ class EnergyReporter():
 
     def report(self, simulation, state):
         sterics_derivative = get_parameter_derivative(simulation, LAMBDA_STERICS)
-        electrostatics_derivative = get_parameter_derivative(simulation, LAMBDA_ELECTROSTATICS)/unit.kilojoules_per_mole
+        electrostatics_derivative = get_parameter_derivative(simulation, LAMBDA_ELECTROSTATICS)
         potential_energy = state.getPotentialEnergy()
         forces = state.getForces(asNumpy=True).value_in_unit(unit.kilojoules_per_mole/unit.nanometer)[self.vac_index]
         self.energies.append(potential_energy)
@@ -316,83 +324,91 @@ def simulate_MAF_row(row):
     print(traj)
     
     solv_forces = []
-    for coords, time in zip(traj.xyz, traj.time):
+    positions = []
+    sterics_derivatives = []
+    electrostatics_derivatives = []
+    count = 0
+    import time
+    for coords in traj.xyz:
+        start = time.time()
         reporter = EnergyReporter(500, vac_indicies)
         MAF_alc_system = make_alchemical_system(system)
         MAF_alc_system.set_positions(coords * unit.nanometer)
         set_fep_lambdas(MAF_alc_system.simulation.context, lambda_sterics, lambda_electrostatics)
         simulation = MAF_alc_system.simulation
         simulation.reporters.append(reporter)
-        simulation.step(10000)
+        simulation.step(200000)
         
-
         #set vaccum positions
         vac_coords = np.array(coords)[vac_indicies]
         alc_system_vac.set_positions(vac_coords.tolist()*unit.nanometer)
         vac_forces = alc_system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
-
 
         U = reporter.energies
         forces = reporter.forces
         dSterics = reporter.sterics_derivative
         dElec = reporter.electrostatics_derivative
         dElec_vac = get_parameter_derivative(alc_system_vac.simulation, LAMBDA_ELECTROSTATICS)
+        dSter_vac = get_parameter_derivative(alc_system_vac.simulation, LAMBDA_STERICS)
+        
+        #find outliers
+        z_forces = np.abs(stats.zscore(forces, axis = 0))
+        z_sterics = np.abs(stats.zscore(dSterics, axis = 0))
+        z_elec = np.abs(stats.zscore(dElec, axis = 0))
+        
+        forces = np.array(forces)[z_forces < 3]
+        dSterics = np.array(dSterics)[z_sterics < 3]
+        dElec = np.array(dElec)[z_elec < 3]
+
         solv_force = np.nanmean(forces, axis=0) - np.array(vac_forces)
         solv_forces.append(solv_force)
+        positions.append(vac_coords)
+        electrostatics_derivatives.append(np.mean(dElec) - dElec_vac)
+        sterics_derivatives.append(np.mean(dSterics) - dSter_vac)
+        print(solv_forces[-1],
+        positions[-1],
+        sterics_derivatives[-1],
+        electrostatics_derivatives[-1],)
+        print(f"Count: {count} Time: {time.time() - start}")
+        count +=1
 
-        print(np.nanmean(dElec.))
-        print(dElec_vac)
-        
-        quit()
-
-        df.loc[
-            (row.bigbind_index, time), 
-            ["energies", "sterics_derivatives", "electrostatics_derivatives"]
-            
-        ] = (
-            np.nanmean(U),  
-            np.nanmean(dSterics),  
-            np.nanmean(dElec) - dElec_vac 
-        )
-        print(df)
-        
-    report_MAF(df, solv_forces, MAF_out_file, lambda_electrostatics, lambda_sterics, system_vac.lig_indices)
+    report_MAF(df, positions, solv_forces, electrostatics_derivatives, sterics_derivatives, lambda_electrostatics, lambda_sterics, MAF_out_file, system_vac.lig_indices)
 
 
-def report_MAF(df, solv_forces, file_name, lambda_electrostatics, lambda_sterics, atom_indices):
-    solv_forces
+def report_MAF(df, positions, solv_forces, electrostatics_derivatives, sterics_derivatives, lambda_electrostatics, lambda_sterics, file_name, atom_indices):
+    positions = iter(positions)
+    solv_forces = iter(solv_forces)
+    electrostatics_derivatives = iter(electrostatics_derivatives)
+    sterics_derivatives = iter(sterics_derivatives)
 
-    file = h5py.File(file_name, 'a')
-    for name in ("positions", "solv_forces"):
-        file.create_dataset(name, maxshape = (None, None,3), shape = (0,0, 3),  dtype=np.float32)
-    for name in ("lambda_sterics", "lambda_electrostatics", "sterics_derivatives", "electrostatics_derivatives", "energies"):
-        file.create_dataset(name, maxshape=(None,), shape=(0,), dtype=np.float32)
+    with h5py.File(file_name, 'a') as file:
+        for name in ("positions", "solv_forces"):
+            file.create_dataset(name, maxshape=(None, len(atom_indices), 3), shape=(0, len(atom_indices), 3), dtype=np.float32)
+        for name in ("lambda_sterics", "lambda_electrostatics", "sterics_derivatives", "electrostatics_derivatives", "energies"):
+            file.create_dataset(name, maxshape=(None,), shape=(0,), dtype=np.float32)
 
-    for _, row in df.iterrows():
-        file["positions"].resize((file["positions"].shape[0] + 1, len(atom_indices), 3))
-        file["positions"][-1] = row["positions"][atom_indices]
+        for _, row in df.iterrows():
+            file["positions"].resize((file["positions"].shape[0] + 1, len(atom_indices), 3))
+            file["positions"][-1] = next(positions)
 
-        file["solv_forces"].resize((file["solv_forces"].shape[0] + 1, len(atom_indices), 3))
-        file["solv_forces"][-1] = row["forces"][atom_indices]
+            file["solv_forces"].resize((file["solv_forces"].shape[0] + 1, len(atom_indices), 3))
+            file["solv_forces"][-1] = next(solv_forces)
 
-        file["sterics_derivatives"].resize((file["sterics_derivatives"].shape[0] + 1,))
-        file["sterics_derivatives"][-1] = row["sterics_derivatives"]
+            file["sterics_derivatives"].resize((file["sterics_derivatives"].shape[0] + 1,))
+            file["sterics_derivatives"][-1] = next(sterics_derivatives)
 
-        file["electrostatics_derivatives"].resize((file["electrostatics_derivatives"].shape[0] + 1,))
-        file["electrostatics_derivatives"][-1] = row["electrostatics_derivatives"]
+            file["electrostatics_derivatives"].resize((file["electrostatics_derivatives"].shape[0] + 1,))
+            file["electrostatics_derivatives"][-1] = next(electrostatics_derivatives)
 
-        file["energies"].resize((file["energies"].shape[0] + 1,))
-        file["energies"][-1] = row["energies"]
+            file["lambda_sterics"].resize((file["lambda_sterics"].shape[0] + 1,))
+            file["lambda_sterics"][-1] = lambda_sterics
 
-        file["lambda_sterics"].resize((file["lambda_sterics"].shape[0] + 1,))
-        file["lambda_sterics"][-1] = lambda_sterics
-
-        file["lambda_electrostatics"].resize((file["lambda_electrostatics"].shape[0] + 1,))
-        file["lambda_electrostatics"][-1] = lambda_electrostatics
-
-    file.close()
+            file["lambda_electrostatics"].resize((file["lambda_electrostatics"].shape[0] + 1,))
+            file["lambda_electrostatics"][-1] = lambda_electrostatics
 
     
+
+
 def simulate_slice(df, index, total_indices):
     """ Simulate everything within this current slice """
     cur_df = df.iloc[(index*len(df))//total_indices:((index+1)*len(df))//total_indices]
