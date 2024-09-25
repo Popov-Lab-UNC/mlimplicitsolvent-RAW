@@ -121,7 +121,7 @@ class AI_Solvation_calc:
         '''Calculates the atom features needed for the GNN to function. the GB Force has derived parameters requiring 
         the derived function to pass through to calculate the radindex based on the GB radius
         '''
-        atom_features_path = os.path.join(self.path, f"{self.name}_gnn_params.pkl")
+        atom_features_path = os.path.join(self.solv_path, f"{self.name}_gnn_params.pkl")
 
         if os.path.exists(atom_features_path):
             print("Found Existing Atom Features")
@@ -203,8 +203,6 @@ class AI_Solvation_calc:
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()   
             U = self.curr_simulation_vac.context.getState(getEnergy=True).getPotentialEnergy()  
-
-            print(U, factor[0].item())
             val = ((factor[0].item()*kilojoule_per_mole + U))/(kB*self._T)
             u[idx] = float(val)
         return u
@@ -364,7 +362,7 @@ class AI_Solvation_calc:
         for lambda_elec in self.lambda_electrostatics:
             self.AI_simulation(0.0, lambda_elec, vaccum = 1.0, out = f"{lambda_elec}_{self.name}")
         '''
-        print(f" -- Finished Simulation -- Vaccum Time: {time.time() - solv_ster_time}; Total Time: {time.time() - start} -- ")
+        print(f" -- Finished Simulation -- Vaccum Time: {time.time() - solv_elec_time}; Total Time: {time.time() - start} -- ")
 
     def compute_delta_F(self):
 
@@ -412,7 +410,7 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/HydrationChangesmodel.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/ChangedRadiusGraphAgainmodel.dict'
     
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])

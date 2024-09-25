@@ -5,7 +5,7 @@ import subprocess
 import pandas as pd
 from openmm import unit
 
-from config import CONFIG
+#from configs import default
 
 def load_freesolv():
     return pd.read_csv("data/freesolv.txt", delimiter=";", comment="#", names=["compound", "smiles", "compound_name", "exp_dG", "exp_uncertainty", "calc_dG", "calc_uncertainty", "exp_ref", "cacl_ref", "notes"])

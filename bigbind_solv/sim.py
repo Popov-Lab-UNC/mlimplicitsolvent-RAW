@@ -13,8 +13,8 @@ import alchemlyb
 from alchemlyb.estimators import MBAR
 from alchemlyb.preprocessing.subsampling import decorrelate_u_nk
 
-from bigbind_solv.lr_complex import get_lr_complex
-from bigbind_solv.fep import apply_fep, set_fep_lambdas
+from lr_complex import get_lr_complex
+from fep import apply_fep, set_fep_lambdas
 
 def get_lig_and_water_indices(system):
     """ Returns lists of sets of the ligand and water atom indices.

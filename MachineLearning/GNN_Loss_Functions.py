@@ -13,6 +13,9 @@ def calc_all_losses(pre_energy, pre_forces, pre_sterics, pre_electrostatics, lda
     loss_f = F.mse_loss(pre_forces, ldata.forces)
     loss_sterics = F.mse_loss(pre_sterics.view(-1,)[mask_sterics], ldata.sterics_derivative[mask_sterics])
     loss_elec = F.mse_loss(pre_electrostatics.view(-1,)[mask_electrostatics], ldata.electrostatics_derivative[mask_electrostatics])
+    #print(pre_sterics[mask_sterics], ldata.sterics_derivative[mask_sterics], loss_sterics.item())
+    #print(pre_electrostatics[mask_electrostatics], ldata.electrostatics_derivative[mask_sterics], loss_elec.item())
+
     tot_loss = (
         loss_f * CONFIG.loss.force_weight
         + loss_sterics * CONFIG.loss.sterics_weight

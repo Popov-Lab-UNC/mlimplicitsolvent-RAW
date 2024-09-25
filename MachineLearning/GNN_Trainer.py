@@ -136,7 +136,7 @@ class Trainer:
         }).to(self._device)
 
     def update_metrics(
-        self, metrics, pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata
+        self, metrics, pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics
     ):
         """ Update the metrics for a single batch and return the metric values """
 
@@ -144,8 +144,8 @@ class Trainer:
         lambda_1_mask_exp = lambda_1_mask[ldata.batch]
         ret = {}
         ret["r2_forces"] = metrics["r2_forces"](pre_forces.flatten(), ldata.forces.flatten()) 
-        ret["r2_sterics"] = metrics["r2_sterics"](pre_sterics.flatten(), ldata.sterics_derivative.flatten())
-        ret["r2_electrostatics"] = metrics["r2_electrostatics"](pre_electrostatics.flatten(), ldata.electrostatics_derivative.flatten())
+        ret["r2_sterics"] = metrics["r2_sterics"](pre_sterics[mask_sterics].flatten(), ldata.sterics_derivative[mask_sterics].flatten())
+        ret["r2_electrostatics"] = metrics["r2_electrostatics"](pre_electrostatics[mask_electrostatics].flatten(), ldata.electrostatics_derivative[mask_electrostatics].flatten())
         if lambda_1_mask.sum() > 1:
             ret["r2_forces_lambda_1"] = metrics["r2_forces_lambda_1"](pre_forces[lambda_1_mask_exp].flatten(), ldata.forces[lambda_1_mask_exp].flatten())
             ret["r2_sterics_lambda_1"] = metrics["r2_sterics_lambda_1"](pre_sterics[lambda_1_mask].flatten(), ldata.sterics_derivative[lambda_1_mask].flatten())
@@ -189,11 +189,13 @@ class Trainer:
                 self._optimizer.zero_grad()
                 ldata = ldata.to(self._device)
                 # Make prediction
-                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
-                    ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,
-                )
+                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model( ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,)
+                
+
                 mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
                 mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
+
+                
                 loss, metric_dict = self.calculate_loss(
                     pre_energy=pre_energy,
                     pre_forces=pre_forces,
@@ -224,6 +226,8 @@ class Trainer:
                         pre_sterics,
                         pre_electrostatics,
                         ldata,
+                        mask_sterics, 
+                        mask_electrostatics,
                     )
                 )
 
@@ -249,7 +253,7 @@ class Trainer:
                     % (
                         i,
                         (time.time() - start) / (d + 1),
-                        np.mean(total_loss),
+                        np.nanmean(total_loss),
                     )
                 )
 
@@ -405,9 +409,7 @@ class Trainer:
         lambdas = []
         for l, ldata in enumerate(tqdm(loader)):
             ldata.to(self._device)
-            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
-                   ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,
-                )
+            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,)
             mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
             mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
             loss, loss_dict = self.calculate_loss(
@@ -425,6 +427,8 @@ class Trainer:
                 pre_sterics,
                 pre_electrostatics,
                 ldata,
+                mask_sterics,
+                mask_electrostatics
             )
 
 
