@@ -169,7 +169,7 @@ class AI_Solvation_calc:
             for idx in range(nbforces.getNumParticles()):
                 charge, sigma, epsilon = nbforces.getParticleParameters(idx)
                 nbforces.setParticleParameters(idx, new_charges[idx], sigma, epsilon)
-        integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds)
+        integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.001*picoseconds) #reduced from 2 femtoseconds temporarily
         simulation = Simulation(self.topology, self.system, integrator, platform= self.platform)
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics", lambda_electrostatics)
@@ -203,7 +203,7 @@ class AI_Solvation_calc:
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()   
             U = self.curr_simulation_vac.context.getState(getEnergy=True).getPotentialEnergy()  
-            val = ((factor[0].item()*kilojoule_per_mole + U))/(kB*self._T)
+            val = (U + (factor[0].item()*kilojoule_per_mole))/(kB*self._T)
             u[idx] = float(val)
         return u
     
@@ -224,10 +224,10 @@ class AI_Solvation_calc:
         
         solv_u_nk_df = []
 
-
+        self.set_system(0.0)
         integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds)
         self.curr_simulation_vac = Simulation(self.topology, self.system, integrator, platform=self.platform)
-        self.curr_simulation_vac.context.setParameter("vaccum", 1.0)
+        # self.curr_simulation_vac.context.setParameter("vaccum", 1.0)
 
         for (lambda_ster, lambda_elec) in self.get_solv_lambda_schedule():
             dcd_file = os.path.join(self.solv_path, f"({lambda_ster}-{lambda_elec})_{self.name}.dcd")
@@ -410,7 +410,7 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/ChangedRadiusGraphAgainmodel.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/NormalizedDerivativesmodel.dict'
     
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])

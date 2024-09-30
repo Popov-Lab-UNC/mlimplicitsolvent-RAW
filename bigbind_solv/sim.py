@@ -293,6 +293,9 @@ class SolvationSim:
         u_nk_vac = self.get_all_vac_u_nk()
         u_nk_solv = self.get_all_solv_u_nk()
 
+        u_nk_vac.to_pickle('/work/users/r/d/rdey/trials/vac_trial.pkl')
+        u_nk_solv.to_pickle('/work/users/r/d/rdey/trials/SolvationSim_trial.pkl')
+
         T = u_nk_vac.attrs["temperature"] * unit.kelvin
 
         mbar_vac = MBAR()

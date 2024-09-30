@@ -8,6 +8,9 @@ import os
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 from config import CONFIG
 from torch_geometric.data import Data
+import numpy as np
+
+
 
 class BigBindSolvDataset(Dataset):
     """ This dataset returns the charges, positions, atomic numbers,
@@ -20,7 +23,7 @@ class BigBindSolvDataset(Dataset):
         self.keys = list(self.file.keys())
         self.length = len(self.keys)
         self.frame_index = frame_index
-        
+        self.scaling_factor = 0.03
     def __len__(self):
         return self.length*self.frame_index
     
@@ -49,9 +52,13 @@ class BigBindSolvDataset(Dataset):
 
         lambda_sterics = group["lambda_sterics"][frame_idx]
         lambda_electrostatics = group["lambda_electrostatics"][frame_idx]
-        sterics_derivative = group["sterics_derivatives"][frame_idx]
-        electrostatics_derivative = group["electrostatics_derivatives"][frame_idx]
 
+        
+        sterics_derivative = np.mean(group["sterics_derivatives"]) #group["sterics_derivatives"][frame_idx]
+        sterics_derivative = sterics_derivative + (group["sterics_derivatives"][frame_idx] - sterics_derivative) * self.scaling_factor
+
+        electrostatics_derivative = np.mean(group["electrostatics_derivatives"]) #group["electrostatics_derivatives"][frame_idx]
+        electrostatics_derivative = electrostatics_derivative + (group["electrostatics_derivatives"][frame_idx] - electrostatics_derivative) * self.scaling_factor
 
         gbn2_params = group["gbn2_params"][:]
         pre_params = np.concatenate([q[:,None], gbn2_params], axis=-1)

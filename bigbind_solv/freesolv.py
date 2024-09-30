@@ -4,7 +4,7 @@ import os
 import subprocess
 import pandas as pd
 from openmm import unit
-
+from sim import SolvationSim
 #from configs import default
 
 def load_freesolv():
@@ -17,7 +17,7 @@ def smi_to_protonated_sdf(smi, out_file):
 
 equil_steps = 10000
 def analyze_freesolv():
-    from solvation.sim import SolvationSim
+    
 
     df = load_freesolv()
     with open("output/freesolv_results.txt", "w") as f:
@@ -45,7 +45,10 @@ def analyze_freesolv():
             f.flush()
 
 if __name__ == "__main__":
-    analyze_freesolv()
-
-
+    smi_to_protonated_sdf('CS(=O)(=O)Cl', '/work/users/r/d/rdey/trials/RealCheck/ligand.sdf')
+    sim = SolvationSim('/work/users/r/d/rdey/trials/RealCheck/ligand.sdf', '/work/users/r/d/rdey/trials/RealCheck/')
+    sim.equil_steps = 10000
+    sim.run_all()
+    delta_F = sim.compute_delta_F()
+    print(delta_F)
 

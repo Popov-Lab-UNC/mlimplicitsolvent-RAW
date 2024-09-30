@@ -283,7 +283,7 @@ def simulate_MAF_row(row):
 
     steps = 50000
 
-    lambda_electrostatics = 1.0
+    lambda_electrostatics = 0.8
     lambda_sterics = 1.0
 
     print(f"Simulating MAF Intial - {row.lig_smiles} for {steps} steps")
@@ -320,7 +320,7 @@ def simulate_MAF_row(row):
 
     vac_indicies = system.lig_indices
     for i in vac_indicies:
-        system.system.setParticleMass(i, 0.0) #I dont understand the point of ur LR complex but I already wrote all my code using it so this is the janky solution to particle mass
+        system.system.setParticleMass(i, 0.0) #only janky solution
     print(traj)
     
     solv_forces = []
@@ -337,6 +337,8 @@ def simulate_MAF_row(row):
         set_fep_lambdas(MAF_alc_system.simulation.context, lambda_sterics, lambda_electrostatics)
         simulation = MAF_alc_system.simulation
         simulation.reporters.append(reporter)
+        dcd = DCDReporter(file = '/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials/old.dcd', reportInterval=500)
+        simulation.reporters.append(dcd)
         simulation.step(200000)
         
         #set vaccum positions
@@ -345,20 +347,12 @@ def simulate_MAF_row(row):
         vac_forces = alc_system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
 
         U = reporter.energies
-        forces = reporter.forces
-        dSterics = reporter.sterics_derivative
-        dElec = reporter.electrostatics_derivative
+        forces = np.array(reporter.forces)
+        dSterics = np.array(reporter.sterics_derivative)
+        dElec = np.array(reporter.electrostatics_derivative)
         dElec_vac = get_parameter_derivative(alc_system_vac.simulation, LAMBDA_ELECTROSTATICS)
         dSter_vac = get_parameter_derivative(alc_system_vac.simulation, LAMBDA_STERICS)
-        
-        #find outliers
-        z_forces = np.abs(stats.zscore(forces, axis = 0))
-        z_sterics = np.abs(stats.zscore(dSterics, axis = 0))
-        z_elec = np.abs(stats.zscore(dElec, axis = 0))
-        
-        forces = np.array(forces)[z_forces < 3]
-        dSterics = np.array(dSterics)[z_sterics < 3]
-        dElec = np.array(dElec)[z_elec < 3]
+    
 
         solv_force = np.nanmean(forces, axis=0) - np.array(vac_forces)
         solv_forces.append(solv_force)
@@ -371,7 +365,7 @@ def simulate_MAF_row(row):
         electrostatics_derivatives[-1],)
         print(f"Count: {count} Time: {time.time() - start}")
         count +=1
-
+        quit()
     report_MAF(df, positions, solv_forces, electrostatics_derivatives, sterics_derivatives, lambda_electrostatics, lambda_sterics, MAF_out_file, system_vac.lig_indices)
 
 

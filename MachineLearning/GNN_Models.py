@@ -337,6 +337,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         
         if gradients_f is not None:
             forces = torch.neg(gradients_f)
+            #print((energies.sum(), forces))
             return (energies.sum(), forces)
         else: 
             return (energies.sum() * 0, torch.zeros_like(positions))
@@ -353,6 +354,8 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         gradients_sterics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_sterics, create_graph = True, retain_graph = True)[0]
         gradients_electrostatics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_electrostatics, create_graph = True, retain_graph = True)[0]
         forces = -1 * gradients_f
+        gradients_sterics = -1 *gradients_sterics
+        gradients_electrostatics = -1 * gradients_electrostatics
         if self._nobatch:
             energy = energies.sum()
             energy = energy.unsqueeze(0)
