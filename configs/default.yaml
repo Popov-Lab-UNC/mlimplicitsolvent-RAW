@@ -17,5 +17,5 @@ loss:
   sterics_weight: 1.0
   electrostatics_weight: 1.0
 
-name: NormalizedDerivativesv3
+name: NormalizedDerivativesv4
 use_wandb: True

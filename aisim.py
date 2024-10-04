@@ -379,7 +379,7 @@ class AI_Solvation_calc:
         F_solv_kt = mbar_solv.delta_f_[(0,0)][(1,1)] #mbar_vac.delta_f_[0][1] - 
         F_solv = F_solv_kt*self._T*kB
 
-        return F_solv
+        return -F_solv
 
         
         

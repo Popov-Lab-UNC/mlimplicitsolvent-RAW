@@ -80,7 +80,7 @@ class SolvDatasetReporter():
         self.report_interval = report_interval
         self.system_vac = system_vac
         self.mol_indices = system_vac.lig_indices
-
+        self.initial = False
         self.file = h5py.File(filename, 'w')
         for name in ("positions", "solv_forces"):
             self.file.create_dataset(name, maxshape=(None, None, 3), shape=(0, 0, 3), dtype=np.float32)
@@ -96,36 +96,37 @@ class SolvDatasetReporter():
         return (steps, True, False, True, True, None)
 
     def report(self, simulation, state):
-        positions = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+        
+        if self.initial: #<- Only needs to be computed once due to MAFs
+            self.positions = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+            self.system_vac.set_positions(self.positions[self.mol_indices] * unit.nanometer)
+            self.vac_forces = self.system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
+             # only compute electrostatics derivative; sterics derivative is zero
+            self.vac_electrostatics_derivative = get_parameter_derivative(self.system_vac.simulation, LAMBDA_ELECTROSTATICS)
+            self.initial = False
+
+
         forces = state.getForces(asNumpy=True).value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
         U = state.getPotentialEnergy().value_in_unit(unit.kilojoules_per_mole)
-
         sterics_derivative = get_parameter_derivative(simulation, LAMBDA_STERICS)
         electrostatics_derivative = get_parameter_derivative(simulation, LAMBDA_ELECTROSTATICS)
 
         # subtract off vac system forces and param derivatives so that we're
         # only looking at the ligand-solvent interactions
-
-        self.system_vac.set_positions(positions[self.mol_indices] * unit.nanometer)
-        vac_forces = self.system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
-
-        # only compute electrostatics derivative; sterics derivative is zero
-        vac_electrostatics_derivative = get_parameter_derivative(self.system_vac.simulation, LAMBDA_ELECTROSTATICS)
-
         lambda_sterics = simulation.context.getParameter(LAMBDA_STERICS)
         lambda_electrostatics = simulation.context.getParameter(LAMBDA_ELECTROSTATICS)
 
         self.file["positions"].resize((self.file["positions"].shape[0] + 1, len(self.mol_indices), 3))
-        self.file["positions"][-1] = positions[self.mol_indices]
+        self.file["positions"][-1] = self.positions[self.mol_indices]
 
         self.file["solv_forces"].resize((self.file["solv_forces"].shape[0] + 1, len(self.mol_indices), 3))
-        self.file["solv_forces"][-1] = forces[self.mol_indices] - vac_forces
+        self.file["solv_forces"][-1] = forces[self.mol_indices] - self.vac_forces
 
         self.file["sterics_derivatives"].resize((self.file["sterics_derivatives"].shape[0] + 1,))
         self.file["sterics_derivatives"][-1] = sterics_derivative.value_in_unit(unit.kilojoules_per_mole)
 
         self.file["electrostatics_derivatives"].resize((self.file["electrostatics_derivatives"].shape[0] + 1,))
-        self.file["electrostatics_derivatives"][-1] = (electrostatics_derivative - vac_electrostatics_derivative).value_in_unit(unit.kilojoules_per_mole)
+        self.file["electrostatics_derivatives"][-1] = (electrostatics_derivative - self.vac_electrostatics_derivative).value_in_unit(unit.kilojoules_per_mole)
 
         self.file["energies"].resize((self.file["energies"].shape[0] + 1,))
         self.file["energies"][-1] = U
@@ -137,9 +138,10 @@ class SolvDatasetReporter():
         self.file["lambda_electrostatics"][-1] = lambda_electrostatics
 
 
+
 def simulate_row(row):
 
-    out_folder = os.path.join("/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials", str(row.bigbind_index))
+    out_folder = os.path.join("/work/users/r/d/rdey/BigBindDataset", str(row.bigbind_index))
     os.makedirs(out_folder, exist_ok=True)
 
     out_file = out_folder + "/sim.h5"
@@ -177,12 +179,19 @@ def simulate_row(row):
     system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
     system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
 
+
+    #FOR THE MAFs
+    vac_indicies = system.lig_indices
+    for i in vac_indicies:
+        system.system.setParticleMass(i, 0.0) #only janky solution
+
+
     alc_system = make_alchemical_system(system)
     alc_system_vac = make_alchemical_system(system_vac)
 
     alc_system.set_positions(system.get_positions())
 
-    full_frac = 0.5 # what fraction of the simulations we run with full interactions 
+    full_frac = 0.2 # what fraction of the simulations we run with full interactions 
 
     if random.random() < full_frac:
         lambda_sterics = 1.0
@@ -196,7 +205,7 @@ def simulate_row(row):
             lambda_sterics = 1.0
             lambda_electrostatics = random.uniform(0.0, 1.0)
 
-    steps = 50000
+    steps = 200000
 
     print(f"Simulating {row.lig_smiles} for {steps} steps")
     print(f"lambda_sterics: {lambda_sterics:0.3f}, lambda_electrostatics: {lambda_electrostatics:0.3f}")
@@ -227,7 +236,6 @@ def simulate_MAF_row(row):
     os.makedirs(out_folder, exist_ok=True)
     MAF_out_file = out_folder + "/MAFsim.h5"
     out_file = out_folder + "/sim.h5"
-
 
 
     if os.path.exists(MAF_out_file):
@@ -262,10 +270,14 @@ def simulate_MAF_row(row):
     system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
     system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
 
+    
+
     alc_system = make_alchemical_system(system)
     alc_system_vac = make_alchemical_system(system_vac)
 
     alc_system.set_positions(system.get_positions())
+
+    
 
     full_frac = 0.5
 
@@ -403,9 +415,10 @@ def report_MAF(df, positions, solv_forces, electrostatics_derivatives, sterics_d
     
 
 
-def simulate_slice(df, index, total_indices):
+def simulate_slice(df, start_index, end_index):
     """ Simulate everything within this current slice """
-    cur_df = df.iloc[(index*len(df))//total_indices:((index+1)*len(df))//total_indices]
+    cur_df = df.iloc[start_index: end_index]
+    #cur_df = df.iloc[(index*len(df))//total_indices:((index+1)*len(df))//total_indices]
     for i, row in tqdm(cur_df.iterrows(), total=len(cur_df)):
         try:
             simulate_row(row)
@@ -444,7 +457,7 @@ def get_splits(df):
     freesolv = load_freesolv()
     freesolv_fps = get_morgan_fps(freesolv.smiles)
 
-    bb_fp_cache = os.path.join(CONFIG.cache_dir, f"bigbind_solv", "bigbind_fps.npy")
+    bb_fp_cache = os.path.join('/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials', f"bigbind_solv", "bigbind_fps.npy")
 
     try:
         with open(bb_fp_cache, "rb") as f:
@@ -458,7 +471,7 @@ def get_splits(df):
     assert len(bb_fps) == len(df)
 
     # compute tanimoto similarity from everything to everything in freesolv
-    edges_cache = os.path.join(CONFIG.cache_dir, f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
+    edges_cache = os.path.join('/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials', f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
 
     try:
         with open(edges_cache, "rb") as f:
@@ -532,7 +545,7 @@ def collate_dataset(df):
     for i, row in tqdm(df.iterrows(), total=len(df)):
 
         try:
-            out_folder = os.path.join(CONFIG.cache_dir, f"bigbind_solv", str(row.bigbind_index))
+            out_folder = os.path.join('/work/users/r/d/rdey/BigBindDataset', str(row.bigbind_index))
             out_file = out_folder + "/sim.h5"
 
             min_start_frame = 10
@@ -612,13 +625,17 @@ def collate_dataset(df):
             traceback.print_exc()
 
 if __name__ == "__main__":
-    df = pd.read_csv('data/bigbind_diverse.csv')
+    df = pd.read_csv('/work/users/r/d/rdey/BigBindDataset/bigbind_diverse.csv')
+    
     action = sys.argv[1]
+    
 
     if action == "simulate":
-        total_indices = int(sys.argv[2])
-        index = int(sys.argv[3])
-        simulate_slice(df, index, total_indices)
+        start_index = int(sys.argv[2])
+        end_index = int(sys.argv[3])
+        #total_indices = int(sys.argv[2])
+        #index = int(sys.argv[3])
+        simulate_slice(df, start_index, end_index)
     elif action == "collate":
         collate_dataset(df)
     else:

@@ -12,9 +12,9 @@ from openmmtools.constants import kB
 import alchemlyb
 from alchemlyb.estimators import MBAR
 from alchemlyb.preprocessing.subsampling import decorrelate_u_nk
-
 from lr_complex import get_lr_complex
 from fep import apply_fep, set_fep_lambdas
+import pickle as pkl
 
 def get_lig_and_water_indices(system):
     """ Returns lists of sets of the ligand and water atom indices.
@@ -63,6 +63,7 @@ class SolvationSim:
         
         self.out_folder = out_folder
         os.makedirs(out_folder, exist_ok=True)
+
 
         kwargs = {
             "nonbonded_cutoff": 0.9*unit.nanometer,
@@ -171,6 +172,7 @@ class SolvationSim:
             set_fep_lambdas(self.system_vac.simulation.context, 0.0, energy_lambda_elec)
             for i, coords in enumerate(traj.xyz):
                 self.system_vac.set_positions(coords*unit.nanometer)
+                
                 U = self.system_vac.simulation.context.getState(getEnergy=True).getPotentialEnergy()
                 # reduced energy (divided by kT)
                 u[i] = U / (kB * T)
