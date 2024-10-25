@@ -24,7 +24,7 @@ from freesolv import load_freesolv, smi_to_protonated_sdf
 from sim import make_alchemical_system
 import traceback
 from scipy import stats
-
+from rdkit.Chem import rdFingerprintGenerator
 
 
 
@@ -72,6 +72,7 @@ class EnergyReporter():
         self.electrostatics_derivative.append(electrostatics_derivative)
         self.sterics_derivative.append(sterics_derivative)
 
+
 class SolvDatasetReporter():
     """ Saves forces, lambda derivatives, and positions
     (only for the ligand to save space) to an hdf5 file. """
@@ -80,7 +81,7 @@ class SolvDatasetReporter():
         self.report_interval = report_interval
         self.system_vac = system_vac
         self.mol_indices = system_vac.lig_indices
-        self.initial = False
+
         self.file = h5py.File(filename, 'w')
         for name in ("positions", "solv_forces"):
             self.file.create_dataset(name, maxshape=(None, None, 3), shape=(0, 0, 3), dtype=np.float32)
@@ -96,37 +97,35 @@ class SolvDatasetReporter():
         return (steps, True, False, True, True, None)
 
     def report(self, simulation, state):
-        
-        if self.initial: #<- Only needs to be computed once due to MAFs
-            self.positions = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
-            self.system_vac.set_positions(self.positions[self.mol_indices] * unit.nanometer)
-            self.vac_forces = self.system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
-             # only compute electrostatics derivative; sterics derivative is zero
-            self.vac_electrostatics_derivative = get_parameter_derivative(self.system_vac.simulation, LAMBDA_ELECTROSTATICS)
-            self.initial = False
-
-
+        positions = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
         forces = state.getForces(asNumpy=True).value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
         U = state.getPotentialEnergy().value_in_unit(unit.kilojoules_per_mole)
+
         sterics_derivative = get_parameter_derivative(simulation, LAMBDA_STERICS)
         electrostatics_derivative = get_parameter_derivative(simulation, LAMBDA_ELECTROSTATICS)
 
         # subtract off vac system forces and param derivatives so that we're
         # only looking at the ligand-solvent interactions
+
+        self.system_vac.set_positions(positions[self.mol_indices] * unit.nanometer)
+        vac_forces = self.system_vac.get_forces().value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
+
+        # only compute electrostatics derivative; sterics derivative is zero
+        vac_electrostatics_derivative = get_parameter_derivative(self.system_vac.simulation, LAMBDA_ELECTROSTATICS)
         lambda_sterics = simulation.context.getParameter(LAMBDA_STERICS)
         lambda_electrostatics = simulation.context.getParameter(LAMBDA_ELECTROSTATICS)
 
         self.file["positions"].resize((self.file["positions"].shape[0] + 1, len(self.mol_indices), 3))
-        self.file["positions"][-1] = self.positions[self.mol_indices]
+        self.file["positions"][-1] = positions[self.mol_indices]
 
         self.file["solv_forces"].resize((self.file["solv_forces"].shape[0] + 1, len(self.mol_indices), 3))
-        self.file["solv_forces"][-1] = forces[self.mol_indices] - self.vac_forces
+        self.file["solv_forces"][-1] = forces[self.mol_indices] - vac_forces
 
         self.file["sterics_derivatives"].resize((self.file["sterics_derivatives"].shape[0] + 1,))
         self.file["sterics_derivatives"][-1] = sterics_derivative.value_in_unit(unit.kilojoules_per_mole)
 
         self.file["electrostatics_derivatives"].resize((self.file["electrostatics_derivatives"].shape[0] + 1,))
-        self.file["electrostatics_derivatives"][-1] = (electrostatics_derivative - self.vac_electrostatics_derivative).value_in_unit(unit.kilojoules_per_mole)
+        self.file["electrostatics_derivatives"][-1] = (electrostatics_derivative - vac_electrostatics_derivative).value_in_unit(unit.kilojoules_per_mole)
 
         self.file["energies"].resize((self.file["energies"].shape[0] + 1,))
         self.file["energies"][-1] = U
@@ -138,10 +137,9 @@ class SolvDatasetReporter():
         self.file["lambda_electrostatics"][-1] = lambda_electrostatics
 
 
-
 def simulate_row(row):
 
-    out_folder = os.path.join("/work/users/r/d/rdey/BigBindDataset", str(row.bigbind_index))
+    out_folder = os.path.join("/work/users/r/d/rdey/BigBindDataset_New", str(row.bigbind_index))
     os.makedirs(out_folder, exist_ok=True)
 
     out_file = out_folder + "/sim.h5"
@@ -227,7 +225,7 @@ def simulate_row(row):
     reporter = SolvDatasetReporter(out_file, alc_system_vac, 500)
     simulation.reporters.append(reporter)
     
-    
+    simulation.step(steps)
 
 
 
@@ -430,11 +428,12 @@ def simulate_slice(df, start_index, end_index):
 def get_morgan_fps(smiles, radius=3, bits=2048):
     """ Get morgan fingerprints for each smiles, skipping ones that fail to parse"""
     fps = []
+    mpfgen = rdFingerprintGenerator.GetMorganGenerator(radius=radius,fpSize=bits, includeChirality=True)
     for smi in tqdm(smiles):
         mol = Chem.MolFromSmiles(smi)
         if mol is None:
             continue
-        fp = AllChem.GetMorganFingerprintAsBitVect(mol, useChirality=True, radius=radius, nBits=bits)
+        fp = mpfgen.GetFingerprint(mol)
         fps.append(np.array(fp, dtype=bool))
     fps = np.asarray(fps)
     return fps
@@ -457,7 +456,7 @@ def get_splits(df):
     freesolv = load_freesolv()
     freesolv_fps = get_morgan_fps(freesolv.smiles)
 
-    bb_fp_cache = os.path.join('/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials', f"bigbind_solv", "bigbind_fps.npy")
+    bb_fp_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", "bigbind_fps.npy")
 
     try:
         with open(bb_fp_cache, "rb") as f:
@@ -471,7 +470,7 @@ def get_splits(df):
     assert len(bb_fps) == len(df)
 
     # compute tanimoto similarity from everything to everything in freesolv
-    edges_cache = os.path.join('/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/trials', f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
+    edges_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
 
     try:
         with open(edges_cache, "rb") as f:
@@ -492,22 +491,25 @@ def get_splits(df):
     bb_freesolv_indices = set(df.bigbind_index[edges[:,1]])
 
     # now assign splits based on BigBind splits
-
+    '''
     bb_split_smiles = {}
     for split in ["val", "test"]:
-        bb_split_df = pd.read_csv(os.path.join(CONFIG.bigbind_dir, "activities_val.csv"))
+        bb_split_df = pd.read_csv(os.path.join('/work/users/r/d/rdey/BigBindDataset', "activities_val.csv"))
         bb_split_smiles[split] = set(bb_split_df.lig_smiles)
+    '''
 
     splits = []
     # make sure approx 10% of the datapoints are in test and val
     for i, row in tqdm(df.iterrows(), total=len(df)):
         split = "train"
         if row.bigbind_index in bb_freesolv_indices:
-            split = "test"
-        elif row.lig_smiles in bb_split_smiles["val"]:
             split = "val"
-        elif row.lig_smiles in bb_split_smiles["test"]:
-            split = "test"
+            '''
+            elif row.lig_smiles in bb_split_smiles["val"]:
+                split = "val"
+            elif row.lig_smiles in bb_split_smiles["test"]:
+                split = "test"
+            '''
         elif i % 10 == 0:
             split = "val"
         elif i % 10 == 1:
@@ -523,7 +525,7 @@ def collate_dataset(df):
 
     np.seterr(all='raise')
 
-    split_cache = os.path.join(CONFIG.cache_dir, f"bigbind_solv", "splits.pkl")
+    split_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", "splits.pkl")
     try:
         with open(split_cache, "rb") as f:
             splits = pickle.load(f)
@@ -537,7 +539,7 @@ def collate_dataset(df):
     # store seperate hdf5 file for each split
     split_data = {}
     for split in df.split.unique():
-        fname = os.path.join(CONFIG.bigbind_solv_dir, split + ".h5")
+        fname = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", split + ".h5")
         if os.path.exists(fname):
             os.remove(fname)
         split_data[split] = h5py.File(fname, "w")
@@ -545,7 +547,7 @@ def collate_dataset(df):
     for i, row in tqdm(df.iterrows(), total=len(df)):
 
         try:
-            out_folder = os.path.join('/work/users/r/d/rdey/BigBindDataset', str(row.bigbind_index))
+            out_folder = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', str(row.bigbind_index))
             out_file = out_folder + "/sim.h5"
 
             min_start_frame = 10
@@ -559,20 +561,23 @@ def collate_dataset(df):
 
             if np.any(np.abs(file["solv_forces"]) > 10000):
                 raise RuntimeError("Forces are too large")
-
-            Us = file["energies"][:]
+            
+            #Calculating burnin should not be as important with MAFs
+            '''Us = file["energies"][:]
             t, g, Neff = timeseries.detect_equilibration(Us)
 
             t = max(t, min_start_frame)
             if len(Us[t::math.ceil(g)]) == 0:
                 raise RuntimeError("Found no frames")
+            '''
 
             data = split_data[row.split]
             group = data.create_group(str(row.bigbind_index))
-
+            
             for key in file.keys():
-                group[key] = file[key][t::math.ceil(g)]
-
+                group.create_dataset(key, data = file[key]) 
+                print(group[key])
+                break
             # now get the atomic numbers and charges from the OpenMM system
             # this should be all we need for the neural networks
 
@@ -608,7 +613,7 @@ def collate_dataset(df):
                 "constraints": app.HBonds,
                 "box_padding": 1.6*unit.nanometer,
                 # "box_padding": 2.0*unit.nanometer,
-                "lig_ff": "espaloma",
+                "lig_ff": "gaff",
                 "cache_dir": out_folder,
             }
             complex_obc = get_lr_complex(None, lig_file,

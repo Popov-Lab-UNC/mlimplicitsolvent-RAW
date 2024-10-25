@@ -214,7 +214,7 @@ class AI_Solvation_calc:
             }
 
         
-        df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
+        #df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
         return df
 
     def solv_u_nk(self):

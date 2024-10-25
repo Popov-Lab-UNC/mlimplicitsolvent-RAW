@@ -10,8 +10,8 @@ from sim import SolvationSim
 #from configs import default
 
 def load_freesolv():
-    return pd.read_csv("data/freesolv.txt", delimiter=";", comment="#", names=["compound", "smiles", "compound_name", "exp_dG", "exp_uncertainty", "calc_dG", "calc_uncertainty", "exp_ref", "cacl_ref", "notes"])
-
+    #return pd.read_csv("data/freesolv.txt", delimiter=";", comment="#", names=["compound", "smiles", "compound_name", "exp_dG", "exp_uncertainty", "calc_dG", "calc_uncertainty", "exp_ref", "cacl_ref", "notes"])
+    return pd.read_csv('/work/users/r/d/rdey/ml_implicit_solvent/freesolv/SAMPL.csv')
 def smi_to_protonated_sdf(smi, out_file):
     """ Uses openbabl to add a conformer + protonate the molecule, saving to out_file """
     cmd = f"obabel -:'{smi.strip()}' -O {out_file} --gen3d --pH 7"

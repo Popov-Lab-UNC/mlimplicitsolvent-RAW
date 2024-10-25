@@ -45,7 +45,7 @@ def make_alchemical_system(system):
 
     integrator = mm.LangevinIntegrator(300*unit.kelvin,
                                         1.0/unit.picosecond,
-                                        4.0*unit.femtosecond)
+                                        2.0*unit.femtosecond)
     simulation = app.Simulation(system.topology, alchemical_system, integrator, system.platform)
 
     lr_system = copy.copy(system)

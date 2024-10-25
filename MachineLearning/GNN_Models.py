@@ -254,7 +254,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         )
         self.gnn_params = None
 
-    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, jit_compile_mode = False, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
 
         if vaccum.item() == 1.0:
             return (torch.scalar_tensor(0), torch.zeros_like(positions))
@@ -332,15 +332,15 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         gradients_f = torch.autograd.grad([energies.sum()],grad_outputs=grad_output, inputs=[positions], create_graph=True, retain_graph = True)[0]
 
 
-        ''' <- Pound sign before this
+        #''' <- Pound sign before this
         #============================================================= JIT SECTION ============================
-        
-        if gradients_f is not None:
-            forces = torch.neg(gradients_f)
-            #print((energies.sum(), forces))
-            return (energies.sum(), forces)
-        else: 
-            return (energies.sum() * 0, torch.zeros_like(positions))
+        if(jit_compile_mode):
+            if gradients_f is not None:
+                forces = torch.neg(gradients_f)
+                #print((energies.sum(), forces))
+                return (energies.sum(), forces)
+            else: 
+                return (energies.sum() * 0, torch.zeros_like(positions))
     
     
     
@@ -375,6 +375,19 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
     
         #===============================================TRAINING SECTION ======================================
         #'''
+
+
+class JitGNN(GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_separate_SA):
+    def __init__(self,fraction=0.5,radius=0.4, max_num_neighbors=32, parameters=None, device=None, jittable=False,unique_radii=None, hidden=128):
+        super().__init__(fraction, radius, max_num_neighbors, parameters, device, jittable, unique_radii, hidden)
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
+        jit_compile_mode = True
+        energies, forces= super().forward(positions, lambda_sterics, lambda_electrostatics, vaccum, jit_compile_mode, batch, atom_features, )
+        return (energies, forces)
+
+
+
+
 
 class GNN3_scale_128(GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_separate_SA):
 
