@@ -45,18 +45,18 @@ class MAFBigBind(Dataset):
         sterics_derivative = stats.trim_mean(group["sterics_derivatives"], self.trim)
         electrostatics_derivative = stats.trim_mean(group["electrostatics_derivatives"], self.trim) #greater deviation in derivative within this compared to forces
 
-        gbn2_params = group["gbn2_params"][:]
-        pre_params = np.concatenate([q[:,None], gbn2_params], axis=-1)
-        force = GBSAGBn2Force(cutoff=None, SA="ACE", soluteDielectric=1.0)
-        force.addParticles(pre_params)  
-        force.finalize()
-        gbn_gnn_data = np.concatenate([[ force.getParticleParameters(i) for i in range(force.getNumParticles())], 
-                                       torch.full((positions.shape[0], 1), lambda_electrostatics), 
-                                       torch.full((positions.shape[0], 1), lambda_sterics)], axis = -1)
+        #gbn2_params = group["gbn2_params"][:]
+        #pre_params = np.concatenate([q[:,None], gbn2_params], axis=-1)
+        #force = GBSAGBn2Force(cutoff=None, SA="ACE", soluteDielectric=1.0)
+        #force.addParticles(pre_params)  
+        #force.finalize()
+        #gbn_gnn_data = np.concatenate([[ force.getParticleParameters(i) for i in range(force.getNumParticles())], 
+                                       #torch.full((positions.shape[0], 1), lambda_electrostatics), 
+                                       #torch.full((positions.shape[0], 1), lambda_sterics)], axis = -1)
 
         return Data(
             charges=torch.tensor(q, dtype=torch.float32),
-            atom_features=torch.tensor(gbn_gnn_data,dtype=torch.float32),
+            #atom_features=torch.tensor(gbn_gnn_data,dtype=torch.float32),
             pos=torch.tensor(positions, dtype=torch.float32),
             atomic_numbers=torch.tensor(atomic_numbers, dtype=torch.long),
             forces=torch.tensor(forces, dtype=torch.float32),
