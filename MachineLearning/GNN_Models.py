@@ -254,7 +254,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         )
         self.gnn_params = None
 
-    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, jit_compile_mode = False, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, jit_compile_mode: bool = True, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
 
         if vaccum.item() == 1.0:
             return (torch.scalar_tensor(0), torch.zeros_like(positions))

@@ -131,7 +131,7 @@ class AI_Solvation_calc:
             return data.to(self.device)
 
         print("Calculating Atom Features for GNN")
-        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1,solventDielectric=4)
+        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1)
         gnn_params = np.array(force.getStandardParameters(self.topology))
         gnn_params = np.concatenate((np.reshape(self.charges, (-1, 1)), gnn_params), axis = 1)
         force.addParticles(gnn_params)
