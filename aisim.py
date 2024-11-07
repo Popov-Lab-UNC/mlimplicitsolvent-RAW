@@ -199,7 +199,7 @@ class AI_Solvation_calc:
         for idx, coords in enumerate(traj.xyz):
             positions = torch.from_numpy(coords).to(self.device)
 
-            factor = self.model(positions, e_lambda_ster, e_lambda_elec, torch.tensor(0.0), None)
+            factor = self.model(positions, e_lambda_ster, e_lambda_elec, torch.tensor(0.0), True)
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()   
             U = self.curr_simulation_vac.context.getState(getEnergy=True).getPotentialEnergy()  
@@ -410,7 +410,7 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/NormalizedDerivativesmodel.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/MAF_MLv1model.dict'
     
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])

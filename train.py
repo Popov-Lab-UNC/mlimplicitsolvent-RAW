@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.loader import DataLoader
-from datasets.bigbind_solv import BigBindSolvDataset
+from datasets.bigbind_solv import MAFBigBind
 import terrace as ter
 import sys
 
@@ -30,8 +30,8 @@ model = GNN3_scale_96(
     unique_radii=tot_unique,
     jittable = True
 )
-trainer._training_data = BigBindSolvDataset("train", frame_index=10)
-trainer._validation_data = BigBindSolvDataset("val", frame_index=1)
+trainer._training_data = MAFBigBind("train_re", dir = '/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
+trainer._validation_data = MAFBigBind("val_re2", dir = '/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
 trainer.model = model
 
 trainer.initialize_optimizer(CONFIG.learn_rate, CONFIG.lr_scheduler)

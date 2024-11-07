@@ -161,6 +161,7 @@ class Trainer:
         batch_size=100,
         clip_gradients=0,
     ):
+        #torch.autograd.set_detect_anomaly(True)
         assert self._optimizer != None
         assert self._model != None
         self.init_wandb(self._name)
@@ -189,7 +190,7 @@ class Trainer:
                 self._optimizer.zero_grad()
                 ldata = ldata.to(self._device)
                 # Make prediction
-                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model( ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,)
+                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model( ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), False, ldata.batch, ldata.atom_features,)
                 
 
                 mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
@@ -409,7 +410,7 @@ class Trainer:
         lambdas = []
         for l, ldata in enumerate(tqdm(loader)):
             ldata.to(self._device)
-            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), ldata.batch, ldata.atom_features,)
+            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), False, ldata.batch, ldata.atom_features,)
             mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
             mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
             loss, loss_dict = self.calculate_loss(

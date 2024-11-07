@@ -334,13 +334,12 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
 
         #''' <- Pound sign before this
         #============================================================= JIT SECTION ============================
-        if(jit_compile_mode):
-            if gradients_f is not None:
-                forces = torch.neg(gradients_f)
-                #print((energies.sum(), forces))
-                return (energies.sum(), forces)
-            else: 
-                return (energies.sum() * 0, torch.zeros_like(positions))
+        if gradients_f is not None:
+            forces = torch.neg(gradients_f)
+            #print((energies.sum(), forces))
+            return (energies.sum(), forces)
+        else: 
+            return (energies.sum() * 0, torch.zeros_like(positions))
     
     
     
