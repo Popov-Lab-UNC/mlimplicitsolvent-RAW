@@ -332,7 +332,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         gradients_f = torch.autograd.grad([energies.sum()],grad_outputs=grad_output, inputs=[positions], create_graph=True, retain_graph = True)[0]
 
 
-        #''' <- Pound sign before this
+        ''' <- Pound sign before this
         #============================================================= JIT SECTION ============================
         if gradients_f is not None:
             forces = torch.neg(gradients_f)

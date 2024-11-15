@@ -18,7 +18,7 @@ class MAFBigBind(Dataset):
         self.file = h5py.File(file_path, "r")
         self.keys = list(self.file.keys())
         self.length = len(self.keys)
-        self.trim = 0.05
+        self.trim = 0.0
 
     def __len__(self):
         return self.length
@@ -31,7 +31,7 @@ class MAFBigBind(Dataset):
         q = group["charges"][:]
         positions = group["positions"][0]
 
-        if positions.size == 0:  # Skip if positions is empty
+        if positions.size == 0: 
             raise IndexError("Empty positions encountered")
 
         # Remaining code as before
@@ -64,17 +64,6 @@ class MAFBigBind(Dataset):
             electrostatics_derivative=torch.tensor(electrostatics_derivative, dtype=torch.float32)
         )
 
-'''
-
-
-
-from datasets.md_batch import MDData
-import torch
-from torch.utils.data import Dataset
-import h5py
-import os
-from config import CONFIG
-from torch_geometric.data import Data
 
 class BigBindSolvDataset(Dataset):
     """ This dataset returns the charges, positions, atomic numbers,
@@ -135,5 +124,4 @@ class BigBindSolvDataset(Dataset):
             electrostatics_derivative=electrostatics_derivative,
         )
 
-        return Data
-'''    
+
