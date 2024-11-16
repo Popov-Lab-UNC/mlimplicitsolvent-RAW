@@ -84,6 +84,8 @@ if __name__ == "__main__":
     non_sim_path = os.path.join(file, non_sim)
     if(not os.path.exists(sim_path)):
         os.mkdir(sim_path)
+    if(not os.path.exists(non_sim_path)):
+        os.mkdir(non_sim_path)
     print("Running Middle Integrator with 1fs")
     runModSim(file, sim_path, 100000, 1e-5, 1, 1)
     print("Running Integrator with 2fs")
