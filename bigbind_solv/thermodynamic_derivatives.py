@@ -27,7 +27,7 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
         derivatives = state.getEnergyParameterDerivatives()
 
        
-        print("Available derivative keys:", list(derivatives.keys()))
+        print("Available derivative keys:", list(derivatives.values()))
 
         sterics_derivative = derivatives['lambda_sterics']
         electrostatics_derivative = derivatives['lambda_electrostatics']
@@ -129,7 +129,7 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
     alchemy_system = factory.create_alchemical_system(system.system, system_region)
     alchemy_system_vac = factory.create_alchemical_system(system_vac.system, system_vac_region)
 
-
+    
 
     #I dont know why mmtools doesnt do this automatically??
     for force in alchemy_system.getForces():
@@ -153,8 +153,18 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
 
     therm_state = ThermodynamicState(alchemy_system, T)
     therm_vac_state = ThermodynamicState(alchemy_system_vac, T)
+
+    therm_state.lambda_electrostatics = lambda_elec
+    therm_state.lambda_sterics = lambda_sterics
+
+    therm_vac_state.lambda_electrostatics = lambda_elec
+    therm_vac_state.lambda_sterics = lambda_sterics
     
     alchemical_state = alchemy.AlchemicalState.from_system(alchemy_system)
+
+
+    alchemical_state.lambda_sterics = lambda_sterics
+    alchemical_state.lambda_electrostatics = lambda_elec
 
     alchemical_state_vac = alchemy.AlchemicalState.from_system(alchemy_system_vac)
 
@@ -170,9 +180,9 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
     compound_state_vac.lambda_electrostatics = lambda_elec
     compound_state_vac.lambda_sterics = lambda_sterics
 
-    integrator = LangevinMiddleIntegrator(T, 1.0/unit.picoseconds, stepSize)
+    integrator = LangevinMiddleIntegrator(T, 2.0/unit.picoseconds, stepSize)
 
-    integrator_vac = LangevinMiddleIntegrator(T, 1.0/unit.picoseconds, stepSize)
+    integrator_vac = LangevinMiddleIntegrator(T, 2.0/unit.picoseconds, stepSize)
 
     platform = Platform.getPlatformByName("CUDA")
 
