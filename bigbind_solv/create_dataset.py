@@ -194,18 +194,18 @@ def simulate_row(row):
 
 
 
-    #Computational stability when calculating derivatives enforces us to change the numbers from 1 and 0 to a close decimal point. 
+    #computational stability when calculating derivatives enforces us to change the numbers from 1 and 0 to a close decimal point. 
     if random.random() < full_frac:
         lambda_sterics = 0.99999973
         lambda_electrostatics = 0.99999973
     else:
-        # alwaays remove electrostatics before sterics
+        # always remove electrostatics before sterics
         if random.random() < 0.5:
-            lambda_sterics = random.uniform(2.7e-7, 0.99999973)
-            lambda_electrostatics = 2.7e-7
+            lambda_sterics = random.uniform(2e-7, 0.99999973)
+            lambda_electrostatics = 0
         else:
-            lambda_sterics = 2.7e-7
-            lambda_electrostatics = random.uniform(2.7e-7, 0.99999973)
+            lambda_sterics = 0.99999973
+            lambda_electrostatics = random.uniform(0, 0.99999973)
 
     steps = 200000
 
