@@ -6,7 +6,7 @@ from openmmforcefields.generators import SMIRNOFFTemplateGenerator
 from openmmtorch import TorchForce
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 import torch
-from openmm import app, NonbondedForce, LangevinMiddleIntegrator, Platform
+from openmm import app, NonbondedForce, LangevinMiddleIntegrator, Platform, LangevinIntegrator
 from openmm.app import *
 import alchemlyb
 from alchemlyb.estimators import MBAR
@@ -36,8 +36,8 @@ class AI_Solvation_calc:
         return system_F, molecule, pdb.topology
     
     def __init__(self, model_dict, name ,smiles, path):
-        self.lambda_electrostatics= [0.0, 0.25, 0.5, 0.75, 1.0] 
-        self.lambda_sterics = [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        self.lambda_electrostatics= [2.7e-7, 0.25, 0.5, 0.75, 0.99999973] 
+        self.lambda_sterics = [2.7e-7, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.99999973]
         self.n_steps = 10000
         self.report_interval = 1000
         self._T = 300*kelvin
@@ -168,7 +168,7 @@ class AI_Solvation_calc:
             for idx in range(nbforces.getNumParticles()):
                 charge, sigma, epsilon = nbforces.getParticleParameters(idx)
                 nbforces.setParticleParameters(idx, new_charges[idx], sigma, epsilon)
-        integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.001*picoseconds) #reduced from 2 femtoseconds temporarily
+        integrator = LangevinIntegrator(self._T, 1/picosecond, 0.001*picoseconds) #reduced from 2 femtoseconds temporarily
         simulation = Simulation(self.topology, self.system, integrator, platform= self.platform)
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics", lambda_electrostatics)
@@ -378,7 +378,7 @@ class AI_Solvation_calc:
         F_solv_kt = mbar_solv.delta_f_[(0,0)][(1,1)] #mbar_vac.delta_f_[0][1] - 
         F_solv = F_solv_kt*self._T*kB
 
-        return -F_solv
+        return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006
 
         
         
@@ -409,7 +409,7 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/MAF_MLv1model.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/MAF_5_Layers_V3model.dict'
     
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])

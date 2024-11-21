@@ -109,8 +109,8 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
             system_vac_path = os.path.join(path, "system_vac")
             system = LRComplex.load(system_path)
             system_vac = LRComplex.load(system_vac_path)
-        except:
-            print("Existing files corrupted... Continuing...")
+        except Exception as e:
+            print(f"Existing files corrupted... Continuing...: {str(e)}")
             return
 
 
@@ -118,13 +118,17 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
 
     factory = AbsoluteAlchemicalFactory(
         consistent_exceptions=False,
-        alchemical_pme_treatment='exact', 
+        alchemical_pme_treatment='direct-space', 
         disable_alchemical_dispersion_correction=True,
         split_alchemical_forces=True
     )   
 
     system_region = alchemy.AlchemicalRegion(alchemical_atoms = system.lig_indices, annihilate_electrostatics = True, annihilate_sterics = False)
     system_vac_region = alchemy.AlchemicalRegion(alchemical_atoms = system_vac.lig_indices, annihilate_electrostatics = True, annihilate_sterics = False)
+
+    print("Alchemical Atoms:", system_region.alchemical_atoms)
+
+    quit()
 
     alchemy_system = factory.create_alchemical_system(system.system, system_region)
     alchemy_system_vac = factory.create_alchemical_system(system_vac.system, system_vac_region)
@@ -195,6 +199,9 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
     reporter_solv = ThermodynamicDerivativesReporter(data_path, system, context_vac, reporter_step)
     #reporter_dcd = DCDReporter(dcd_path, reporter_step)
 
+    
+
+    
 
     for _ in range(0, steps, reporter_step):
         integrator.step(reporter_step)
@@ -206,7 +213,7 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps, s
         #reporter_dcd.report(context, state)
         reporter_solv.report(context, state)
 
-
+    
 
 if __name__ == "__main__":
     base_file_path = "/work/users/r/d/rdey/BigBindDataset_New/"

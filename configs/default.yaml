@@ -1,9 +1,9 @@
 bigbind_solv_dir: /work/users/r/d/rdey/BigBindSolvV2/BigBindSolvV2
 batch_size: 100
-learn_rate: 1e-4
-num_epochs: 2
+learn_rate: 1e-5
+num_epochs: 300
 clip_gradients: 1
-lr_scheduler: 'Exponential30' # no learning rate scheduler
+lr_scheduler: 'None' # no learning rate scheduler
 
 logging_freq: 20
 
@@ -15,7 +15,7 @@ electrostatics_hidden_dim: 64
 loss:
   force_weight: 1.0
   sterics_weight: 1.0
-  electrostatics_weight: 1.05
+  electrostatics_weight: 1.0
 
-name: MAF_ML_Weighted_v2
+name: MAF_6_Layers_V2
 use_wandb: True

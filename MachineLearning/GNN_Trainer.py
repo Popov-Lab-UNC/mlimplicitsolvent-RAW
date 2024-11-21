@@ -257,6 +257,8 @@ class Trainer:
                         np.nanmean(total_loss),
                     )
                 )
+                #break
+            #continue
 
             val_results.append(self.validate_model(batch_size=batch_size))
             print(f"Validation results for epoch {i}")

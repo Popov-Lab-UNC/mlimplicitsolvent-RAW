@@ -12,6 +12,10 @@ from config import CONFIG, load_config
 if len(sys.argv) > 1:
     load_config(sys.argv[1])
 
+
+
+print(f"Name of Model: {CONFIG.name}")
+
 trainer = Trainer(
     verbose=True,
     name=CONFIG.name,

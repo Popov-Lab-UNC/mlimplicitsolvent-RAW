@@ -28,7 +28,7 @@ from rdkit.Chem import rdFingerprintGenerator
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 
 
-def get_parameter_derivative(simulation, param_name, dp=1e-5):
+def get_parameter_derivative(simulation, param_name, dp=1e-4):
     """ 
     Uses finite difference to calculate the derivative of the 
     potential energy with respect to a parameter.
@@ -191,17 +191,21 @@ def simulate_row(row):
 
     full_frac = 0.2 # what fraction of the simulations we run with full interactions 
 
+
+
+
+    #Computational stability when calculating derivatives enforces us to change the numbers from 1 and 0 to a close decimal point. 
     if random.random() < full_frac:
-        lambda_sterics = 1.0
-        lambda_electrostatics = 1.0
+        lambda_sterics = 0.99999973
+        lambda_electrostatics = 0.99999973
     else:
         # alwaays remove electrostatics before sterics
         if random.random() < 0.5:
-            lambda_sterics = random.uniform(0.0, 1.0)
-            lambda_electrostatics = 0.0
+            lambda_sterics = random.uniform(2.7e-7, 0.99999973)
+            lambda_electrostatics = 2.7e-7
         else:
-            lambda_sterics = 1.0
-            lambda_electrostatics = random.uniform(0.0, 1.0)
+            lambda_sterics = 2.7e-7
+            lambda_electrostatics = random.uniform(2.7e-7, 0.99999973)
 
     steps = 200000
 
