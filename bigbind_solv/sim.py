@@ -43,7 +43,7 @@ def make_alchemical_system(system):
     # create a new alchemical system
     alchemical_system = apply_fep(system.system, lig_indices, water_indices)
 
-    integrator = mm.LangevinIntegrator(300*unit.kelvin,
+    integrator = mm.LangevinMiddleIntegrator(300*unit.kelvin,
                                         1.0/unit.picosecond,
                                         2.0*unit.femtosecond)
     simulation = app.Simulation(system.topology, alchemical_system, integrator, system.platform)

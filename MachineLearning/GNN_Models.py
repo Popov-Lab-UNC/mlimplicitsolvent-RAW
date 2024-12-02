@@ -232,15 +232,15 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             self.interaction2 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
             self.interaction3 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
             self.interaction4 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
-            self.interaction5 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
-            self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
+            self.interaction5 = IN_layer_all_swish_2pass(hidden + hidden,2,radius,device,hidden).jittable()
+            #self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
         else:
             self.interaction1 = IN_layer_all_swish_2pass(5 + 5, hidden,radius,device,hidden)
             self.interaction2 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden)
             self.interaction3 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden)
             self.interaction4 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
-            self.interaction4 = IN_layer_all_swish_2pass(hidden + hidden, hidden,radius,device,hidden).jittable()
-            self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
+            self.interaction4 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
+            #self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
 
         self._silu = torch.nn.SiLU()
         self.sigmoid = nn.Sigmoid()
@@ -309,8 +309,8 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         Bcn = self.interaction4(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
         Bcn = self._silu(Bcn)
         Bcn = self.interaction5(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
-        Bcn = self._silu(Bcn)
-        Bcn = self.interaction6(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
+        #Bcn = self._silu(Bcn)
+        #Bcn = self.interaction6(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
         # Separate into polar and non-polar contributions
         c_scale = Bcn[:,0]
         sa_scale = Bcn[:,1]
@@ -343,7 +343,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         gradients_f = torch.autograd.grad([energies.sum()],grad_outputs=grad_output, inputs=[positions], create_graph=True, retain_graph = True)[0]
 
 
-        ''' <- Pound sign before this
+        #''' <- Pound sign before this
         #============================================================= JIT SECTION ============================
         if gradients_f is not None:
             forces = torch.neg(gradients_f)

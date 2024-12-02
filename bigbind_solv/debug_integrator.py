@@ -1,4 +1,4 @@
-
+from config_dict import config_dict
 import openmm as mm
 from openmm import unit, app
 from openmm.app.dcdreporter import DCDReporter
@@ -77,7 +77,7 @@ def runModSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics, l
 
 
 if __name__ == "__main__":
-    file = "/work/users/r/d/rdey/BigBindDataset_New/112014"
+    file = os.path.join(config_dict["bind_dir"], str(112014))
     sim = "Integrator"
     non_sim = "Non_Integrator"
     sim_path = os.path.join(file, sim)

@@ -36,8 +36,8 @@ class AI_Solvation_calc:
         return system_F, molecule, pdb.topology
     
     def __init__(self, model_dict, name ,smiles, path):
-        self.lambda_electrostatics= [2.7e-7, 0.25, 0.5, 0.75, 0.99999973] 
-        self.lambda_sterics = [2.7e-7, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.99999973]
+        self.lambda_electrostatics= [2.7e-7, 0.25, 0.5, 0.75, 1] 
+        self.lambda_sterics = [2.7e-7, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 1]
         self.n_steps = 10000
         self.report_interval = 1000
         self._T = 300*kelvin
@@ -130,7 +130,7 @@ class AI_Solvation_calc:
             return data.to(self.device)
 
         print("Calculating Atom Features for GNN")
-        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1)
+        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1, solventDielectric=4)
         gnn_params = np.array(force.getStandardParameters(self.topology))
         gnn_params = np.concatenate((np.reshape(self.charges, (-1, 1)), gnn_params), axis = 1)
         force.addParticles(gnn_params)
@@ -224,11 +224,11 @@ class AI_Solvation_calc:
         solv_u_nk_df = []
 
         self.set_system(0.0)
-        integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds)
+        integrator = LangevinIntegrator(self._T, 1/picosecond, 0.001*picoseconds)
         self.curr_simulation_vac = Simulation(self.topology, self.system, integrator, platform=self.platform)
         # self.curr_simulation_vac.context.setParameter("vaccum", 1.0)
 
-        for (lambda_ster, lambda_elec) in self.get_solv_lambda_schedule():
+        for (lambda_ster, lambda_elec) in tqdm(self.get_solv_lambda_schedule()):
             dcd_file = os.path.join(self.solv_path, f"({lambda_ster}-{lambda_elec})_{self.name}.dcd")
             pdb_file  = os.path.join(self.solv_path, f"{self.name}.pdb")
             traj = md.load(dcd_file, top = pdb_file)
@@ -375,7 +375,7 @@ class AI_Solvation_calc:
         mbar_solv = MBAR()
         mbar_solv.fit(solv) 
 
-        F_solv_kt = mbar_solv.delta_f_[(0,0)][(1,1)] #mbar_vac.delta_f_[0][1] - 
+        F_solv_kt = mbar_solv.delta_f_[(0.0, 0.0)][(1.0, 1.0)]  #mbar_vac.delta_f_[0][1] - 
         F_solv = F_solv_kt*self._T*kB
 
         return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006

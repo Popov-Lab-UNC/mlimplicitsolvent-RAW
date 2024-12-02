@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 #from config import CONFIG
+from config_dict import config_dict
 from lr_complex import LRComplex, get_lr_complex
 from openmm import unit, app
 from openmm.app.dcdreporter import DCDReporter
@@ -139,7 +140,7 @@ class SolvDatasetReporter():
 
 def simulate_row(row):
 
-    out_folder = os.path.join("/work/users/r/d/rdey/BigBindDataset_New", str(row.bigbind_index))
+    out_folder = os.path.join(config_dict["bind_dir"], str(row.bigbind_index))
     os.makedirs(out_folder, exist_ok=True)
 
     out_file = out_folder + "/sim.h5"
@@ -460,7 +461,7 @@ def get_splits(df):
     freesolv = load_freesolv()
     freesolv_fps = get_morgan_fps(freesolv.smiles)
 
-    bb_fp_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", "bigbind_fps.npy")
+    bb_fp_cache = os.path.join(config_dict["bind_dir"], f"bigbind_solv", "bigbind_fps.npy")
 
     try:
         with open(bb_fp_cache, "rb") as f:
@@ -474,7 +475,7 @@ def get_splits(df):
     assert len(bb_fps) == len(df)
 
     # compute tanimoto similarity from everything to everything in freesolv
-    edges_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
+    edges_cache = os.path.join(config_dict["bind_dir"], f"bigbind_solv", f"bigbind_fp_edges_{tan_cutoff}.npy")
 
     try:
         with open(edges_cache, "rb") as f:
@@ -498,7 +499,7 @@ def get_splits(df):
     '''
     bb_split_smiles = {}
     for split in ["val", "test"]:
-        bb_split_df = pd.read_csv(os.path.join('/work/users/r/d/rdey/BigBindDataset', "activities_val.csv"))
+        bb_split_df = pd.read_csv(os.path.join(config_dict["bind_dir"], "activities_val.csv"))
         bb_split_smiles[split] = set(bb_split_df.lig_smiles)
     '''
 
@@ -529,7 +530,7 @@ def collate_dataset(df):
 
     np.seterr(all='raise')
 
-    split_cache = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", "splits.pkl")
+    split_cache = os.path.join(config_dict["bind_dir"], f"bigbind_solv", "splits.pkl")
     try:
         with open(split_cache, "rb") as f:
             splits = pickle.load(f)
@@ -543,7 +544,7 @@ def collate_dataset(df):
     # store seperate hdf5 file for each split
     split_data = {}
     for split in df.split.unique():
-        fname = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', f"bigbind_solv", split + ".h5")
+        fname = os.path.join(config_dict["bind_dir"], f"bigbind_solv", split + ".h5")
         if os.path.exists(fname):
             os.remove(fname)
         split_data[split] = h5py.File(fname, "w")
@@ -551,7 +552,7 @@ def collate_dataset(df):
     for i, row in tqdm(df.iterrows(), total=len(df)):
 
         try:
-            out_folder = os.path.join('/work/users/r/d/rdey/BigBindDataset_New', str(row.bigbind_index))
+            out_folder = os.path.join(config_dict["bind_dir"], str(row.bigbind_index))
             out_file = out_folder + "/sim.h5"
 
             min_start_frame = 10
@@ -624,7 +625,7 @@ def collate_dataset(df):
                         solvent="obc2",
                         **kwargs
             )
-            force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1,solventDielectric=4)
+            force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1,solventDielectric=78.5)
             gnn_params = np.array(force.getStandardParameters(complex_obc.topology))
             group["gnn_params"] = gnn_params
         
@@ -637,7 +638,7 @@ def collate_dataset(df):
             traceback.print_exc()
 
 if __name__ == "__main__":
-    df = pd.read_csv('/work/users/r/d/rdey/BigBindDataset/bigbind_diverse.csv')
+    df = pd.read_csv(config_dict['bind_csv'])
     
     action = sys.argv[1]
     

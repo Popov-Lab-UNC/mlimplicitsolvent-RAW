@@ -17,7 +17,7 @@ import shutil
 import itertools
 from tqdm import tqdm
 import h5py
-
+from config_dict import config_dict
 
 
 #This was basically copy pasted from the original SolvReporter 
@@ -42,7 +42,7 @@ class SolvDatasetReporterWithCustomDP(SolvDatasetReporter):
         context = simulation.context
         parameter = context.getParameter(param_name)
 
-        if parameter == 1.0:
+        if np.isclose(parameter, 1.0, 1e-4):
             dp = -dp
 
         initial_energy = context.getState(getEnergy=True).getPotentialEnergy()
@@ -139,13 +139,35 @@ def runSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics, lamb
 
     simulation.step(steps)
 
+def computationalStability(file_path, folder_paths):
+    lambda_elecs = [0.99999973, 1]
+    lambda_sters = [0.99999973, 1]
+    steps = 250000
+    dp = 1e-4
+    com = list(itertools.product(lambda_elecs, lambda_sters))
+
+    for (lambda_elec, lambda_ster) in com:
+        for folder in tqdm(folder_paths):
+            try:
+                folder = os.path.join(file_path, folder)
+                assert os.path.exists(folder)
+                sim_path = f"Stability_check_{lambda_elec}_{lambda_ster}"
+                sim_folder = os.path.join(folder, sim_path)
+                if os.path.exists(sim_folder):
+                    shutil.rmtree(sim_folder)
+                os.mkdir(sim_folder)
+                runSim(folder, sim_folder, steps, dp, lambda_elec, lambda_ster)
+            except Exception as e:
+                print(f"Failed to run: {str(e)}... Continuing...")
+
+
 
 
 
 
 def runAll(file_path, folder_paths, sim_path, dp, lambda_elec):
-    lambda_sterics = 1.0
-    steps = 100000
+    lambda_sterics = 0.99999973
+    steps = 250000
     for folder in tqdm(folder_paths):
         try:
             folder = os.path.join(file_path, folder)
@@ -169,7 +191,7 @@ def randomSample(bigbind_path):
         random_folders = random.sample(folders, 500)
         random_folders = random.sample([os.path.basename(f) for f in folders], 500)
 
-        with open("/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/Random_files.txt", "w") as f:
+        with open(os.path.join(config_dict['base_file'],"bigbind_solv/Random_files.txt"), "w") as f:
             for folder in random_folders:
                 f.write(f"{folder}\n")
         return random_folders
@@ -210,6 +232,36 @@ def statsAnalysis(base_path, folder_paths):
 
     return
 
+def StabilitystatsAnalysis(base_path, folder_paths):
+    lambda_elecs = [0.99999973, 1]
+    lambda_sters = [0.99999973, 1]
+    com = list(itertools.product(lambda_elecs, lambda_sters))
+
+    for (lambda_elec, lambda_ster) in com:
+        array = []
+        for folder in folder_paths:
+            sim_path = os.path.join(base_path, folder, f"Stability_check_{lambda_elec}_{lambda_ster}", "sim.h5")
+            if not os.path.exists(sim_path):
+                continue
+            try:
+                file = h5py.File(sim_path, 'r')
+
+                if(len(file['electrostatics_derivatives']) < 200):
+                    continue
+                mean_elec = np.nanmean(file['sterics_derivatives'])
+                mean_U = np.nanmean(file['energies'])
+
+                array.append([mean_elec, np.array(file['sterics_derivatives'])])
+            except Exception as e:
+                print(f"Skipping corrupt or unreadable file: {sim_path}: {str(e)}")
+                continue
+        #array = np.array(array)
+        #array = np.array(array[:, 0])
+        #change = np.std(array[:, 0])
+        min_val = max(array, key=lambda x: x[0])  # Find the row with the smallest mean elec
+        print(lambda_elec, lambda_ster, max(min_val[1]))
+        #avg = np.nanmean(array[:, 0])
+        #print(f"Current Lambda_Elec {lambda_elec} Lambda_Ster {lambda_ster} PTP: {change}; Average {avg}")
 
 def simulate(file_path):
     
@@ -227,8 +279,7 @@ def simulate(file_path):
     runAll(file_path, folder_array, new_sim_path_name, dp, lambda_elec)
 
 if __name__ == "__main__":
-    file_path = "/work/users/r/d/rdey/BigBindDataset_New"
+    file_path = config_dict['bind_dir']
     with open("/work/users/r/d/rdey/ml_implicit_solvent/bigbind_solv/Random_files.txt", "r") as file:
         folder_array = [line.strip() for line in file]
-    #simulate(file_path)
-    statsAnalysis(file_path, folder_array)
+    StabilitystatsAnalysis(file_path, folder_array)
