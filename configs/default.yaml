@@ -17,5 +17,5 @@ loss:
   sterics_weight: 1.0
   electrostatics_weight: 1.0
 
-name: MAF_6_Layers_V2
+name: SingleMolecule_V2
 use_wandb: True

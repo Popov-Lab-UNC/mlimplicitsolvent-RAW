@@ -260,10 +260,8 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         )
         self.gnn_params = None
 
-    def forward(self, positions, lambda_sterics, lambda_electrostatics, vaccum, jit_compile_mode: bool = True, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
+    def forward(self, positions, lambda_sterics, lambda_electrostatics, retrieve_forces, jit_compile_mode: bool = True, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
 
-        if vaccum.item() == 1.0:
-            return (torch.scalar_tensor(0), torch.zeros_like(positions))
         
         positions = positions.requires_grad_(True)
         lambda_sterics = lambda_sterics.requires_grad_(True)
@@ -287,6 +285,8 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             x = atom_features
         else:
             raise Exception("No GNN Params Given")
+        
+        x = x.float()
 
         l_electrostatics = electrostatics_scale[batch]
         l_sterics = sterics_scale[batch]
@@ -343,46 +343,39 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         gradients_f = torch.autograd.grad([energies.sum()],grad_outputs=grad_output, inputs=[positions], create_graph=True, retain_graph = True)[0]
 
 
-        #''' <- Pound sign before this
-        #============================================================= JIT SECTION ============================
         if gradients_f is not None:
             forces = torch.neg(gradients_f)
-            #print((energies.sum(), forces))
-            return (energies.sum(), forces)
-        else: 
-            return (energies.sum() * 0, torch.zeros_like(positions))
-    
-    
-    
-        '''
-        #============================================================= JIT SECTION ============================
-
-        #===============================================TRAINING SECTION ======================================
-
+            if retrieve_forces:
+                #print((energies.sum(), forces))
+                return (energies.sum(), forces)
+                
 
         # Return prediction and Gradients with respect to data
-        gradients_sterics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_sterics, create_graph = True, retain_graph = True)[0]
-        gradients_electrostatics = torch.autograd.grad(energies.sum(), grad_outputs=grad_output, inputs = l_electrostatics, create_graph = True, retain_graph = True)[0]
-        forces = -1 * gradients_f
-    
+        gradients_sterics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_sterics], create_graph = True, retain_graph = True)[0]
+        gradients_electrostatics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_electrostatics], create_graph = True, retain_graph = True)[0]
+
         if self._nobatch:
             energy = energies.sum()
-            energy = energy.unsqueeze(0)
-            energy = energy.unsqueeze(0)
-            sterics = gradients_sterics.sum()
-            electrostatics = gradients_electrostatics.sum()
+            energy = energy.unsqueeze(0).unsqueeze(0)
+            sterics = gradients_sterics.sum() 
+            electrostatics = gradients_electrostatics.sum() 
         else:
-            energy = torch.empty((torch.max(batch) + 1, 1), device=self._device)
-            sterics = torch.empty((torch.max(batch) + 1, 1), device=self._device)
-            electrostatics = torch.empty((torch.max(batch) + 1, 1), device=self._device)
+            if batch is not None and batch.numel() > 0: 
+                max_batch = int(torch.max(batch).item()) + 1  
+            else:
+                max_batch = 1 
+            
+            energy = torch.empty((max_batch, 1), device=self._device)
+            sterics = torch.empty((max_batch, 1), device=self._device)
+            electrostatics = torch.empty((max_batch, 1), device=self._device)
+            
             for curr in batch.unique():
-    
                 energy[curr] = energies[torch.where(curr == batch)].sum()
                 sterics[curr] = gradients_sterics.view(-1, 1)[torch.where(curr == batch)].sum()
                 electrostatics[curr] = gradients_electrostatics.view(-1, 1)[torch.where(curr == batch)].sum()
 
         return energy, forces, sterics, electrostatics
-    
+
         #===============================================TRAINING SECTION ======================================
         #'''
 

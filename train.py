@@ -34,8 +34,8 @@ model = GNN3_scale_96(
     unique_radii=tot_unique,
     jittable = True
 )
-trainer._training_data = MAFBigBind("train_re", dir = '/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
-trainer._validation_data = MAFBigBind("val_re2", dir = '/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
+trainer._training_data = MAFBigBind("train", dir = '/work/users/r/d/rdey/single_molecule_v1')
+trainer._validation_data = MAFBigBind("val", dir = '/work/users/r/d/rdey/single_molecule_v1')
 trainer.model = model
 
 trainer.initialize_optimizer(CONFIG.learn_rate, CONFIG.lr_scheduler)

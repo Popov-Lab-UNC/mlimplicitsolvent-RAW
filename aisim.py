@@ -73,7 +73,7 @@ class AI_Solvation_calc:
         cache_path = os.path.join(self.solv_path, f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = self.compute_atom_features()
+            gnn_params = self.compute_atom_features().to(self.device)
             self.model.gnn_params = gnn_params
             torch.jit.script(self.model).save(cache_path)
 
@@ -130,7 +130,8 @@ class AI_Solvation_calc:
             return data.to(self.device)
 
         print("Calculating Atom Features for GNN")
-        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1, solventDielectric=4)
+        force = GBSAGBn2Force(cutoff=None,SA="ACE",soluteDielectric=1, solventDielectric=78.5)
+        print(78.5)
         gnn_params = np.array(force.getStandardParameters(self.topology))
         gnn_params = np.concatenate((np.reshape(self.charges, (-1, 1)), gnn_params), axis = 1)
         force.addParticles(gnn_params)
@@ -168,7 +169,7 @@ class AI_Solvation_calc:
             for idx in range(nbforces.getNumParticles()):
                 charge, sigma, epsilon = nbforces.getParticleParameters(idx)
                 nbforces.setParticleParameters(idx, new_charges[idx], sigma, epsilon)
-        integrator = LangevinIntegrator(self._T, 1/picosecond, 0.001*picoseconds) #reduced from 2 femtoseconds temporarily
+        integrator = LangevinMiddleIntegrator(self._T, 1/picosecond, 0.002*picoseconds) #reduced from 2 femtoseconds temporarily
         simulation = Simulation(self.topology, self.system, integrator, platform= self.platform)
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics", lambda_electrostatics)
@@ -375,7 +376,7 @@ class AI_Solvation_calc:
         mbar_solv = MBAR()
         mbar_solv.fit(solv) 
 
-        F_solv_kt = mbar_solv.delta_f_[(0.0, 0.0)][(1.0, 1.0)]  #mbar_vac.delta_f_[0][1] - 
+        F_solv_kt = mbar_solv.delta_f_[(2.7e-07, 0.0)][(1.0, 1.0)]  #mbar_vac.delta_f_[0][1] - 
         F_solv = F_solv_kt*self._T*kB
 
         return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006
@@ -409,12 +410,12 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/MAF_5_Layers_V3model.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/SingleMolecule_V2model.dict'
     
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/trials'
+    path = '/work/users/r/d/rdey/trials/solvent_check'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path, smiles=smile, path=path, name = name)
     obj.run_all_sims(overwrite = False)

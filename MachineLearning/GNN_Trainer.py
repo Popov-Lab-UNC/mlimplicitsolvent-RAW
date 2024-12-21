@@ -193,8 +193,8 @@ class Trainer:
                 pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model( ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), False, ldata.batch, ldata.atom_features,)
                 
 
-                mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
-                mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
+                mask_sterics = True #(ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
+                mask_electrostatics = True #(ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
 
                 
                 loss, metric_dict = self.calculate_loss(
@@ -423,6 +423,7 @@ class Trainer:
             derivatives.append(pre_electrostatics.detach().to('cpu'))
             for key, value in loss_dict.items():
                 losses[key].append(value.item())
+            
             self.update_metrics(
                 metrics,
                 pre_energy,
@@ -433,19 +434,20 @@ class Trainer:
                 mask_sterics,
                 mask_electrostatics
             )
+            
 
 
         results = {
             key: np.mean(value) for key, value in losses.items()
         }
+        '''
         results.update(
             {
                 key: metrics[key].compute()
                 for key in metrics.keys()
             }
         )
-        plt.scatter(np.concatenate(lambdas), np.concatenate(derivatives))
-        plt.savefig("hi.png")
+        '''
         return results
 
     def test_model(self, batch_size=32, return_predictions=False):
