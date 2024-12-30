@@ -8,7 +8,7 @@ import os
 import shutil
 import alchemlyb.preprocessing
 from openff.toolkit.topology import Molecule
-from openmmforcefields.generators import SMIRNOFFTemplateGenerator
+from openmmforcefields.generators import GAFFTemplateGenerator
 from openmmtorch import TorchForce
 from openmm.app.internal.customgbforces import GBSAGBn2Force
 import torch
@@ -35,7 +35,7 @@ class AI_Solvation_calc_TI:
     def create_system_from_smiles(smiles, pdb_path):
         molecule = Molecule.from_smiles(smiles)
         pdb = app.PDBFile(pdb_path)
-        smirnoff = SMIRNOFFTemplateGenerator(molecules=molecule)
+        smirnoff = GAFFTemplateGenerator(molecules=molecule)
         forcefield = app.ForceField()
         forcefield.registerTemplateGenerator(smirnoff.generator)
         system_F = forcefield.createSystem(topology = pdb.topology, nonbondedCutoff=0.9*nanometer, constraints=app.HBonds)
@@ -264,17 +264,20 @@ class AI_Solvation_calc_TI:
         gnn_params = torch.tensor(self.compute_atom_features())
         
 
-
-        #very rudimentary equilibriation check
         traj.center_coordinates()
-        rmsd_vals = md.rmsd(traj, traj, -1, precentered = True)
+        ref = traj[0]
+        aligned = traj.superpose(reference = ref)
+        avg_coords = np.mean(aligned.xyz, axis=0)
+        avg_structure = md.Trajectory(xyz=avg_coords.reshape(1, -1, 3), topology=traj.topology)
+
+        rmsd_vals = md.rmsd(target = traj, reference = avg_structure, frame = 0, atom_indices= None, precentered = True)
         rmsd_mean = np.mean(rmsd_vals)
         rmsd_std = np.std(rmsd_vals)
         start_index = next((index for index, rmsd in enumerate(rmsd_vals) if rmsd < (rmsd_mean + rmsd_std)), 10)
-        start_index = 10 if start_index < 10 else start_index
+        start_index = 20 if start_index < 20 else start_index
 
         print(start_index)
-        for idx, coords in enumerate(traj.xyz):
+        for idx, coords in enumerate(traj.xyz[start_index:]):
             positions = torch.from_numpy(coords).to(self.device)
             positions = positions.float()
             lambda_ster = lambda_ster.float()
