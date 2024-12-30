@@ -263,11 +263,10 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
     def forward(self, positions, lambda_sterics, lambda_electrostatics, retrieve_forces, jit_compile_mode: bool = True, batch: Optional[torch.Tensor] = None, atom_features: Optional[torch.Tensor] = None):
 
         
-        positions = positions.requires_grad_(True).to(self._device)
-        lambda_sterics = lambda_sterics.requires_grad_(True).to(self._device)
-        lambda_electrostatics = lambda_electrostatics.requires_grad_(True).to(self._device)
+        positions = positions.requires_grad_(True)
+        lambda_sterics = lambda_sterics.requires_grad_(True)
+        lambda_electrostatics = lambda_electrostatics.requires_grad_(True)
 
-        print(lambda_sterics.device)
         edge_index = torch_geometric.nn.radius_graph(positions, self.gbneck_radius, batch, False, self._max_num_neighbors, 'source_to_target', 1)
         gnn_edge_index = torch_geometric.nn.radius_graph(positions, self._gnn_radius, batch, False, self._max_num_neighbors, 'source_to_target', 1)
         edge_attributes  = self._distancer(positions[edge_index[0]], positions[edge_index[1]]).unsqueeze(1).to(torch.float32)
@@ -277,13 +276,13 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.view(-1, 1)) * lambda_electrostatics.view(-1,1)
 
         if batch is None:
-            batch = torch.zeros(size=(len(positions), 1)).to(torch.long).to(self._device)
+            batch = torch.zeros(size=(len(positions), 1)).to(torch.long)
 
 
         if self.gnn_params is not None:
-            x = self.gnn_params.to(torch.float32).to(self._device)
+            x = self.gnn_params.to(torch.float32)
         elif torch.is_tensor(atom_features):
-            x = atom_features.to(self._device)
+            x = atom_features
         else:
             raise Exception("No GNN Params Given")
         
