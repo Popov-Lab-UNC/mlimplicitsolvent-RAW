@@ -45,9 +45,10 @@ class AI_Solvation_calc_TI:
     def __init__(self, model_dict, name ,smiles, path):
         self.lambda_electrostatics= [2.7e-7, 0.25, 0.5, 0.75, 1] 
         self.lambda_sterics = [2.7e-7, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 1]
-        self.n_steps = 100000
+        self.n_steps = 10000
         self.report_interval = 500
         self._T = 300*kelvin
+        self.minimum_equil_frame = 5
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if(self.device == torch.device("cpu")):
             self.platform = Platform.getPlatformByName('CPU')
@@ -261,7 +262,6 @@ class AI_Solvation_calc_TI:
         lambda_elec = torch.scalar_tensor(lambda_elec).to(self.device)
         sterics = []
         electrostatics = []
-        gnn_params = torch.tensor(self.compute_atom_features())
         
 
         traj.center_coordinates()
@@ -270,24 +270,62 @@ class AI_Solvation_calc_TI:
         avg_coords = np.mean(aligned.xyz, axis=0)
         avg_structure = md.Trajectory(xyz=avg_coords.reshape(1, -1, 3), topology=traj.topology)
 
-        rmsd_vals = md.rmsd(target = traj, reference = avg_structure, frame = 0, atom_indices= None, precentered = True)
+        rmsd_vals = md.rmsd(target = traj, 
+                            reference = avg_structure, 
+                            frame = 0, atom_indices= None, 
+                            precentered = True)
+        
         rmsd_mean = np.mean(rmsd_vals)
         rmsd_std = np.std(rmsd_vals)
-        start_index = next((index for index, rmsd in enumerate(rmsd_vals) if rmsd < (rmsd_mean + rmsd_std)), 10)
-        start_index = 20 if start_index < 20 else start_index
+
+        start_index = next(
+                        (
+                            index for index, rmsd in enumerate(rmsd_vals) 
+                            if rmsd < (rmsd_mean + rmsd_std)
+                        ), 
+                        self.minimum_equil_frame)
+        
+        start_index = self.minimum_equil_frame if start_index < self.minimum_equil_frame else start_index
 
         print(start_index)
-        for idx, coords in enumerate(traj.xyz[start_index:]):
+
+        gnn_params = torch.cat(
+                                (
+                                    torch.tensor(self.compute_atom_features()),
+                                    torch.full((len(avg_structure.xyz[0]), 1), lambda_elec),
+                                    torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
+                                ),
+                                dim=-1
+                            )
+
+        for idx, coords in enumerate(traj[start_index:].xyz):
             positions = torch.from_numpy(coords).to(self.device)
             positions = positions.float()
             lambda_ster = lambda_ster.float()
             lambda_elec = lambda_elec.float()
-            print(f"sterics: {lambda_ster} electrostatic { lambda_elec} Max Position: {positions.max()} ")
-            _, _, steric, electrostatic = self.model(positions, lambda_ster, lambda_elec, torch.tensor(0.0).to(self.device), True, None, gnn_params)
-            print(f"Calced sterics {steric} calced Electrostatic {electrostatic}")
+            U, F, steric, electrostatic = self.model(positions, lambda_ster, lambda_elec, 
+                                                     torch.tensor(0.0).to(self.device), 
+                                                     True, None, gnn_params)
+            '''
+            if(lambda_ster == 0.7):
+                print(f"Positions: {positions}")
+                print(f"GNN_Params: {gnn_params}")
+                print(f"lambda_ster: {lambda_ster}")
+                print(f"lambda_ster: {lambda_elec}")
+
+                print(f"energy: {U}")
+                print(f"Forces: {F}")
+                print(f"sterics: {steric}")
+                print(f"elec: {electrostatic}")
+            '''
+
             sterics.append(steric)
             electrostatics.append(electrostatic)
-        return (lambda_elec.item(), (torch.mean(torch.tensor(electrostatics).detach()).item()), lambda_ster.item(), (torch.mean(torch.tensor(sterics).detach()).item()))
+        return (lambda_elec.item(), 
+                (torch.mean(torch.tensor(electrostatics).detach()).item()), 
+                lambda_ster.item(), 
+                (torch.mean(torch.tensor(sterics).detach()).item())
+                )
 
     def collateInfo(self):
         derivatives = []
@@ -329,14 +367,14 @@ class AI_Solvation_calc_TI:
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/SingleMolecule_V2model.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/Best_Trained_Models/MAF_5_Layers_V3model.dict'
     
-    smile = "CC(C)C=C"
-    expt = 1.83
-    name = "3-methylbut-1-ene"
-    path = '/work/users/r/d/rdey/solvent_check_v1'
+    smile = str(sys.argv[1])
+    expt = float(sys.argv[2])
+    name = str(sys.argv[3])
+    path = '/work/users/r/d/rdey/test_check'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc_TI(model_dict=model_path, smiles=smile, path=path, name = name)
     obj.run_all_sims(overwrite = False)
-    #res, _ = obj.collateInfo()
+    res, _ = obj.collateInfo()
     print(f"{name}, {res}, {expt}")

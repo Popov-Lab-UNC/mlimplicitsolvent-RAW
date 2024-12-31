@@ -276,17 +276,22 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         electrostatics_scale = self.electrostatics_ff(lambda_electrostatics.view(-1, 1)) * lambda_electrostatics.view(-1,1)
 
         if batch is None:
-            batch = torch.zeros(size=(len(positions), 1)).to(torch.long)
+            batch = torch.zeros(size=(len(positions), )).to(torch.long)
 
 
         if self.gnn_params is not None:
-            x = self.gnn_params.to(torch.float32)
+            x = torch.cat([self.gnn_params.to(torch.float32),
+                    torch.full((positions.detach().shape[0], 1), lambda_electrostatics.item()),
+                    torch.full((positions.detach().shape[0], 1), lambda_sterics.item())], dim=-1)
+
         elif torch.is_tensor(atom_features):
             x = atom_features
         else:
             raise Exception("No GNN Params Given")
         
         x = x.float()
+
+
 
         l_electrostatics = electrostatics_scale[batch]
         l_sterics = sterics_scale[batch]
@@ -349,7 +354,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 #print((energies.sum(), forces))
                 return (energies.sum(), forces)
                 
-        '''
+        #'''
         # Return prediction and Gradients with respect to data
         gradients_sterics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_sterics], create_graph = True, retain_graph = True)[0]
         gradients_electrostatics = torch.autograd.grad([energies.sum()], grad_outputs=grad_output, inputs = [l_electrostatics], create_graph = True, retain_graph = True)[0]
