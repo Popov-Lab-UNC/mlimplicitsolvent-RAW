@@ -215,20 +215,15 @@ def simulate_row(row):
 
     alc_system.set_positions(system.get_positions())
 
-    full_frac = 0.2  # what fraction of the simulations we run with full interactions
+    full_frac = 0.2  # what fraction of the simulations we run with full interactions -- REMOVED
 
     #computational stability when calculating derivatives enforces us to change the numbers from 1 and 0 to a close decimal point.
-    if random.random() < full_frac:
-        lambda_sterics = 0.99999973
-        lambda_electrostatics = 0.99999973
+    if random.random() < 0.5:
+        lambda_sterics = random.uniform(2e-7, 0.99999973)
+        lambda_electrostatics = 0
     else:
-        # always remove electrostatics before sterics
-        if random.random() < 0.5:
-            lambda_sterics = random.uniform(2e-7, 0.99999973)
-            lambda_electrostatics = 0
-        else:
-            lambda_sterics = 0.99999973
-            lambda_electrostatics = random.uniform(0, 0.99999973)
+        lambda_sterics = 0.99999973
+        lambda_electrostatics = random.uniform(0, 0.99999973)
 
     steps = 200000
 
