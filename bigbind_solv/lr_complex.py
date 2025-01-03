@@ -13,6 +13,7 @@ from openmmforcefields.generators import EspalomaTemplateGenerator, GAFFTemplate
 from openmmforcefields.generators import SystemGenerator
 from openff.units.openmm import to_openmm
 
+
 class LRComplex:
     """ Container for the OpenMM system for a receptor and/or ligand
     in complex, along with a bunch of helper functions.
@@ -72,20 +73,25 @@ class LRComplex:
             self.pocket_indices = np.array(pocket_indices)
 
         # pocket indices + ligand indices
-        self.all_pocket_indices = np.concatenate([self.pocket_indices, self.lig_indices])
+        self.all_pocket_indices = np.concatenate(
+            [self.pocket_indices, self.lig_indices])
 
         self._diff_energy_system = None
         self._diff_energy_mask = None
 
-        self.solvent_indices = np.zeros(self.system.getNumParticles(), dtype=bool)
+        self.solvent_indices = np.zeros(self.system.getNumParticles(),
+                                        dtype=bool)
         for res in self.topology.residues():
             if res.name in ("HOH", "WAT", "SOL", "CL", "Cl-", "NA", "Na+"):
                 for atom in res.atoms():
                     self.solvent_indices[atom.index] = True
 
     def make_simulation(self):
-        integrator =  mm.LangevinIntegrator(300*unit.kelvin, 1.0/unit.picoseconds, 0.002*unit.picoseconds)
-        self.simulation = app.Simulation(self.topology, self.system, integrator, self.platform)
+        integrator = mm.LangevinIntegrator(300 * unit.kelvin,
+                                           1.0 / unit.picoseconds,
+                                           0.002 * unit.picoseconds)
+        self.simulation = app.Simulation(self.topology, self.system,
+                                         integrator, self.platform)
 
     # lmaoooo this legacy code from HS was killing performance -- this is actually pretty performant lol
     def set_platform(self, cuda):
@@ -139,7 +145,8 @@ class LRComplex:
     def get_tuple(self):
         """ Returns a tuple of everything needed to reconstruct the system
         (except for the system itself, which is saved separately) """
-        return (self.topology, self.get_positions(), self.lig_indices, self.pocket_indices)
+        return (self.topology, self.get_positions(), self.lig_indices,
+                self.pocket_indices)
 
     def copy(self):
         system, tup = deepcopy((self.system, self.get_tuple()[1:]))
@@ -158,13 +165,17 @@ class LRComplex:
 
     def get_positions(self):
         """ Get the positions of the system """
-        return self.simulation.context.getState(getPositions=True).getPositions(asNumpy=True)
-    
+        return self.simulation.context.getState(
+            getPositions=True).getPositions(asNumpy=True)
+
     def get_potential_energy(self):
         """ Get the potential energy of the system """
-        U = self.simulation.context.getState(getEnergy=True).getPotentialEnergy().in_units_of(unit.kilocalorie_per_mole)
+        U = self.simulation.context.getState(
+            getEnergy=True).getPotentialEnergy().in_units_of(
+                unit.kilocalorie_per_mole)
         if self._diff_energy_system is not None:
-            self._diff_energy_system.set_positions(self.get_positions()[self._diff_energy_mask])
+            self._diff_energy_system.set_positions(
+                self.get_positions()[self._diff_energy_mask])
             diff_U = self._diff_energy_system.get_potential_energy()
             U -= diff_U
         return U
@@ -172,14 +183,15 @@ class LRComplex:
     def get_lig_positions(self):
         """ Get the positions of the ligand """
         return self.get_positions()[self.lig_indices]
-    
+
     def get_rec_positions(self):
         """ Get the positions of the receptor """
         return self.get_positions()[self.rec_indices]
 
     def get_forces(self):
         """ Get the forces on the system """
-        return self.simulation.context.getState(getForces=True).getForces(asNumpy=True)
+        return self.simulation.context.getState(getForces=True).getForces(
+            asNumpy=True)
 
     def save_positions(self, filename):
         """ Save the positions of the system to a pkl file """
@@ -196,15 +208,18 @@ class LRComplex:
     def minimize_energy(self, tol=5e-3, quiet=False):
         """ Minimize the energy up to tol (in kcal/mol) """
 
-        tol = tol*unit.kilocalorie_per_mole
+        tol = tol * unit.kilocalorie_per_mole
         if not quiet:
             print('Minimizing energy...')
-        self.simulation.minimizeEnergy(tolerance=tol.value_in_unit(unit.kilojoule_per_mole))
+        self.simulation.minimizeEnergy(
+            tolerance=tol.value_in_unit(unit.kilojoule_per_mole))
 
         state = self.simulation.context.getState(getEnergy=True)
         U = state.getPotentialEnergy()
         if not quiet:
-            print(f"Minimized energy: {U.value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
+            print(
+                f"Minimized energy: {U.value_in_unit(unit.kilocalorie_per_mole)} kcal/mol"
+            )
 
     def minimize_cached(self, cache_filename, tol=5e-3):
         """ Minimization can take a while; this function allows
@@ -219,20 +234,28 @@ class LRComplex:
         """ Minimize the energy until the mean force on the atoms
         is less than force_tol (in kcal/mol/angstrom) """
 
-        tol = 0*unit.kilocalorie_per_mole
+        tol = 0 * unit.kilocalorie_per_mole
         print('Minimizing energy...')
         for i in range(max_iter):
-            self.simulation.minimizeEnergy(tolerance=tol.value_in_unit(unit.kilojoule_per_mole), maxIterations=10000)
-            forces = self.get_forces().value_in_unit(unit.kilocalorie_per_mole/unit.angstrom)
+            self.simulation.minimizeEnergy(tolerance=tol.value_in_unit(
+                unit.kilojoule_per_mole),
+                                           maxIterations=10000)
+            forces = self.get_forces().value_in_unit(
+                unit.kilocalorie_per_mole / unit.angstrom)
             mean_force = np.mean(np.linalg.norm(forces, axis=1))
             if mean_force < force_tol:
                 break
 
         state = self.simulation.context.getState(getEnergy=True)
         U = state.getPotentialEnergy()
-        print(f"Minimized energy: {U.value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
+        print(
+            f"Minimized energy: {U.value_in_unit(unit.kilocalorie_per_mole)} kcal/mol"
+        )
 
-    def minimize_force_tol_cached(self, cache_filename, force_tol=0.019, max_iter=150):
+    def minimize_force_tol_cached(self,
+                                  cache_filename,
+                                  force_tol=0.019,
+                                  max_iter=150):
         """ Minimization can take a while; this function allows
         us to cache the results  """
         if os.path.exists(cache_filename):
@@ -261,12 +284,14 @@ class LRComplex:
         T = Tmax
         t = trange(n_iter)
         for i in t:
-            T = (n_iter-i)*Tmax/n_iter
+            T = (n_iter - i) * Tmax / n_iter
             self.simulation.integrator.setTemperature(T)
             self.simulation.step(100)
             state = self.simulation.context.getState(getEnergy=True)
             U = state.getPotentialEnergy()
-            t.set_description(f"T: {T.value_in_unit(unit.kelvin):0.2f}K, U: {U.value_in_unit(unit.kilocalorie_per_mole):0.2f} kcal/mol")
+            t.set_description(
+                f"T: {T.value_in_unit(unit.kelvin):0.2f}K, U: {U.value_in_unit(unit.kilocalorie_per_mole):0.2f} kcal/mol"
+            )
 
         self.minimize_force_tol()
 
@@ -287,10 +312,10 @@ class LRComplex:
         positions = self.get_positions()
         app.PDBFile.writeFile(self.topology, positions, open(filename, 'w'))
 
-    def get_pocket_indices(self, 
+    def get_pocket_indices(self,
                            lig_pos,
-                           cutoff_dist = 3.0,
-                           excluded_atoms = ["N", "C", "O"]):
+                           cutoff_dist=3.0,
+                           excluded_atoms=["N", "C", "O"]):
         """ Returns indices of all the atoms in the
         pocket residues (defined by the cutoff distance to the ligand)
         By default it only includes sidechain atoms (not the backbone) """
@@ -308,7 +333,7 @@ class LRComplex:
                 dists = np.linalg.norm(positions[atom.index] - lig_pos, axis=1)
                 min_dist = np.min(dists)
                 if min_dist < 0.01:
-                    continue # ligand atom
+                    continue  # ligand atom
                 if min_dist < cutoff_dist:
                     pocket_residues.append(r)
                     break
@@ -322,15 +347,15 @@ class LRComplex:
                 poc_sidechain_indices.append(atom.index)
 
         return np.array(poc_sidechain_indices)
-    
+
     def has_ligand(self):
         """ Returns True if the system has a ligand """
         return len(self.lig_indices) > 0
-    
+
     def has_rec(self):
         """ Returns True if the system has a receptor """
         return len(self.lig_indices) < self.topology.getNumAtoms()
-    
+
     def get_adjacency_matrix(self):
         """ Returns the adjacency matrix for the system """
         n_atoms = self.topology.getNumAtoms()
@@ -342,22 +367,23 @@ class LRComplex:
             adj[j, i] = 1
         return adj
 
-def get_lr_complex(prot_pdb, 
-                  lig_sdf,
-                  lig_index=0,
-                  pocket_indices=None,
-                  lig_ff="gaff",
-                  solvent="obc2",
-                  constraints=app.HBonds,
-                  nonbonded_method=app.NoCutoff,
-                  nonbonded_cutoff=2.0*unit.nanometer,
-                  include_barostat=False,
-                  box_vectors=None,
-                  box_padding=1.0*unit.nanometer,
-                  P = 1.0*unit.atmosphere,
-                  T = 300*unit.kelvin,
-                  cache_dir=None,
-                  extra_mols=[]):
+
+def get_lr_complex(prot_pdb,
+                   lig_sdf,
+                   lig_index=0,
+                   pocket_indices=None,
+                   lig_ff="gaff",
+                   solvent="obc2",
+                   constraints=app.HBonds,
+                   nonbonded_method=app.NoCutoff,
+                   nonbonded_cutoff=2.0 * unit.nanometer,
+                   include_barostat=False,
+                   box_vectors=None,
+                   box_padding=1.0 * unit.nanometer,
+                   P=1.0 * unit.atmosphere,
+                   T=300 * unit.kelvin,
+                   cache_dir=None,
+                   extra_mols=[]):
     """ Loads an LRComplex from a protein PDB and a ligand SDF;
     lig_index indiciates which ligand in the SDF to use. Both
     prot_pdb and lig_sdf are optional. Note that it is assumed
@@ -395,7 +421,6 @@ def get_lr_complex(prot_pdb,
 
         modeller.add(top, to_openmm(lig.conformers[0]))
 
-
     forcefield_kwargs = {
         "nonbondedMethod": nonbonded_method,
         "nonbondedCutoff": nonbonded_cutoff,
@@ -407,15 +432,20 @@ def get_lr_complex(prot_pdb,
         prefix = "amber14" if solvent == "tip3p" else "implicit"
         ffs.append(f'{prefix}/{solvent}.xml')
 
-    mols = [ lig ] if lig is not None else []
+    mols = [lig] if lig is not None else []
     for mol_file in extra_mols:
         mols.append(Molecule.from_file(mol_file))
 
     forcefield = app.ForceField(*ffs)
     if lig_ff == "gaff":
-        generator = GAFFTemplateGenerator(mols, cache=None if cache_dir is None else f"{cache_dir}/gaff.json")
+        generator = GAFFTemplateGenerator(
+            mols,
+            cache=None if cache_dir is None else f"{cache_dir}/gaff.json")
     elif lig_ff == "espaloma":
-        generator = EspalomaTemplateGenerator(mols, cache=None if cache_dir is None else f"{cache_dir}/espaloma.json", forcefield='espaloma-0.3.2')
+        generator = EspalomaTemplateGenerator(
+            mols,
+            cache=None if cache_dir is None else f"{cache_dir}/espaloma.json",
+            forcefield='espaloma-0.3.2')
     else:
         raise ValueError(f"lig_ff must be gaff or espaloma, not {lig_ff}")
     forcefield.registerTemplateGenerator(generator.generator)
@@ -429,34 +459,30 @@ def get_lr_complex(prot_pdb,
 
     if solvent == "tip3p":
         modeller.addSolvent(
-            forcefield, 
-            model='tip3p', 
-            padding=box_padding, 
+            forcefield,
+            model='tip3p',
+            padding=box_padding,
             positiveIon='Na+',
             negativeIon='Cl-',
-            ionicStrength=0.0*unit.molar,
+            ionicStrength=0.0 * unit.molar,
             neutralize=True,
         )
 
     if box_vectors is not None:
         modeller.topology.setPeriodicBoxVectors(box_vectors)
 
-
     system = forcefield.createSystem(modeller.topology, **forcefield_kwargs)
 
     if include_barostat:
         system.addForce(mm.MonteCarloBarostat(P, T))
 
-    return LRComplex(system,
-                    modeller.topology,
-                    modeller.positions,
-                    lig_indices,
-                    pocket_indices)
+    return LRComplex(system, modeller.topology, modeller.positions,
+                     lig_indices, pocket_indices)
 
 
 def get_all_pocket_indices(rec_file,
-                           lig_files, 
-                           cutoff_dist = 3.0,
+                           lig_files,
+                           cutoff_dist=3.0,
                            excluded_atoms=["N", "C", "O"]):
     """ Returns the indices of the pocket atoms that
     are within cutoff_dist angstroms of _any_ conformer of _any_

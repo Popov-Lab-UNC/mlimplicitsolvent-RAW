@@ -9,21 +9,24 @@ from sklearn.metrics import mean_squared_error
 from config import CONFIG
 
 
-def calc_all_losses(pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics):
+def calc_all_losses(pre_energy, pre_forces, pre_sterics, pre_electrostatics,
+                    ldata, mask_sterics, mask_electrostatics):
     #cheap workaround to dataset issues
     mask_nan = ~torch.isnan(pre_forces) & ~torch.isnan(ldata.forces)
 
     loss_f = F.mse_loss(pre_forces[mask_nan], ldata.forces[mask_nan])
-    loss_sterics = F.mse_loss(pre_sterics.view(-1,)[mask_sterics], ldata.sterics_derivative[mask_sterics])
-    loss_elec = F.mse_loss(pre_electrostatics.view(-1,)[mask_electrostatics], ldata.electrostatics_derivative[mask_electrostatics])
+    loss_sterics = F.mse_loss(
+        pre_sterics.view(-1, )[mask_sterics],
+        ldata.sterics_derivative[mask_sterics])
+    loss_elec = F.mse_loss(
+        pre_electrostatics.view(-1, )[mask_electrostatics],
+        ldata.electrostatics_derivative[mask_electrostatics])
     #print(pre_sterics[mask_sterics], ldata.sterics_derivative[mask_sterics], loss_sterics.item())
     #print(pre_electrostatics[mask_electrostatics], ldata.electrostatics_derivative[mask_sterics], loss_elec.item())
 
-    tot_loss = (
-        loss_f * CONFIG.loss.force_weight
-        + loss_sterics * CONFIG.loss.sterics_weight
-        + loss_elec * CONFIG.loss.electrostatics_weight
-    )
+    tot_loss = (loss_f * CONFIG.loss.force_weight +
+                loss_sterics * CONFIG.loss.sterics_weight +
+                loss_elec * CONFIG.loss.electrostatics_weight)
 
     loss_dict = {
         "loss": tot_loss,
@@ -49,9 +52,5 @@ def calc_all_losses(pre_energy, pre_forces, pre_sterics, pre_electrostatics, lda
                     print(ldata.forces[idx])
                     print(coord)
                     print(ldata.pos[idx])
-
-
-        
-    
 
     return tot_loss, loss_dict

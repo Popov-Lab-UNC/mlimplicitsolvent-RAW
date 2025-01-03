@@ -19,12 +19,17 @@ def make_openmm_topology(data, ret_queue):
         print_exc()
         ret_queue.put(None)
 
+
 def add_gbn_params():
-    os.makedirs('/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv', exist_ok=True)
+    os.makedirs('/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv',
+                exist_ok=True)
 
     for split in ["val", "test", "train"]:
-        dataset = MAFBigBind(split, dir='/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
-        h5_gnn_fname = os.path.join('/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv', f"{split}_GNN.h5")
+        dataset = MAFBigBind(
+            split, dir='/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv')
+        h5_gnn_fname = os.path.join(
+            '/work/users/r/d/rdey/BigBindDataset_New/bigbind_solv',
+            f"{split}_GNN.h5")
         if os.path.exists(h5_fname):
             os.remove(h5_fname)
 
@@ -39,7 +44,7 @@ def add_gbn_params():
 
                 # annoying way to make sure this times out after 1 sec
                 q = mp.Queue()
-                p = mp.Process(target=make_openmm_topology, args=(data,q))
+                p = mp.Process(target=make_openmm_topology, args=(data, q))
                 p.start()
                 p.join(5)
                 if p.is_alive():
@@ -53,7 +58,7 @@ def add_gbn_params():
                     print("Error at index", index)
                     continue
 
-                force = GBSAGBn2Force(cutoff=None,SA="ACE")
+                force = GBSAGBn2Force(cutoff=None, SA="ACE")
                 gbn2_params = force.getStandardParameters(topology)
 
                 out_group = h5_file.create_group(key)
@@ -66,8 +71,9 @@ def add_gbn_params():
             except:
                 print("Error at index", index)
                 print_exc()
-        
+
         h5_file.close()
+
 
 if __name__ == "__main__":
     add_gbn_params()

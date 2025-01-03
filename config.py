@@ -5,6 +5,7 @@ from omegaconf import OmegaConf, DictConfig
 
 CONFIG = DictConfig({})
 
+
 def load_config(filename, include_cmd_line=True):
     """ Loads configuration from default.yml, the config filename,
     and command line arguments, in that order. Returns nothing; it
@@ -25,10 +26,11 @@ def load_config(filename, include_cmd_line=True):
     # try to come up with reasonable defaults
     if "cache_dir" not in cfg:
         cfg.cache_dir = "cache"
-    
+
     for key in list(CONFIG.keys()):
         del CONFIG[key]
-        
+
     CONFIG.update(cfg)
+
 
 load_config(None)

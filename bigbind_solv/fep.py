@@ -1,7 +1,6 @@
 ### This is taken from https://github.com/SimonBoothroyd/absolv/blob/main/absolv/fep.py
 ### The original code is licensed under the MIT License
 ### Thanks, Simon!
-
 """Prepare OpenMM systems for FEP calculations."""
 import copy
 import itertools
@@ -22,13 +21,11 @@ LJ_POTENTIAL = "4.0*epsilon*x*(x-1.0); x = (sigma/r)^6;"
 LJ_POTENTIAL_BEUTLER = (
     f"{LAMBDA_STERICS}*4.0*epsilon*x*(x-1.0);"
     "x = (sigma/reff_sterics)^6;"
-    f"reff_sterics = sigma*(0.5*(1.0-{LAMBDA_STERICS}) + (r/sigma)^6)^(1/6);"
-)
+    f"reff_sterics = sigma*(0.5*(1.0-{LAMBDA_STERICS}) + (r/sigma)^6)^(1/6);")
 
 
-def _find_v_sites(
-    system: openmm.System, atom_indices: list[set[int]]
-) -> list[set[int]]:
+def _find_v_sites(system: openmm.System,
+                  atom_indices: list[set[int]]) -> list[set[int]]:
     """Finds any virtual sites in the system and ensures their indices get appended
     to the atom index list.
 
@@ -41,7 +38,9 @@ def _find_v_sites(
     """
 
     atom_to_molecule_idx = {
-        atom_idx: i for i, indices in enumerate(atom_indices) for atom_idx in indices
+        atom_idx: i
+        for i, indices in enumerate(atom_indices)
+        for atom_idx in indices
     }
 
     particle_to_atom_idx = {}
@@ -56,7 +55,9 @@ def _find_v_sites(
 
     atom_idx = 0
 
-    remapped_atom_indices: list[set[int]] = [set() for _ in range(len(atom_indices))]
+    remapped_atom_indices: list[set[int]] = [
+        set() for _ in range(len(atom_indices))
+    ]
 
     for particle_idx in range(system.getNumParticles()):
         if not system.isVirtualSite(particle_idx):
@@ -77,9 +78,9 @@ def _find_v_sites(
 def _find_nonbonded_forces(
     system: openmm.System,
 ) -> tuple[
-    openmm.NonbondedForce | None,
-    openmm.CustomNonbondedForce | None,
-    openmm.CustomBondForce | None,
+        openmm.NonbondedForce | None,
+        openmm.CustomNonbondedForce | None,
+        openmm.CustomBondForce | None,
 ]:
     """Attempts to find the forces that describe the non-bonded (both vdW and
     electrostatic) interactions in the system.
@@ -104,22 +105,18 @@ def _find_nonbonded_forces(
             custom_bond_forces.append(force)
 
     if not (
-        # vdW + electrostatics in a single built-in non-bonded force
-        (len(normal_nonbonded_forces) == 1 and len(custom_nonbonded_forces) == 0)
-        # OR electrostatics in a built-in non-bonded force, vdW in a custom
-        # **non-bonded** force and vdW 1-4 interactions in a custom **bond** force
-        or (
-            len(normal_nonbonded_forces) == 1
-            and len(custom_nonbonded_forces) == 1
-            and len(custom_bond_forces) == 1
-        )
-        # OR all of the above sans any electrostatics.
-        or (
-            len(normal_nonbonded_forces) == 0
-            and len(custom_nonbonded_forces) == 1
-            and len(custom_bond_forces) == 1
-        )
-    ):
+            # vdW + electrostatics in a single built-in non-bonded force
+        (len(normal_nonbonded_forces) == 1
+         and len(custom_nonbonded_forces) == 0)
+            # OR electrostatics in a built-in non-bonded force, vdW in a custom
+            # **non-bonded** force and vdW 1-4 interactions in a custom **bond** force
+            or
+        (len(normal_nonbonded_forces) == 1 and len(custom_nonbonded_forces)
+         == 1 and len(custom_bond_forces) == 1)
+            # OR all of the above sans any electrostatics.
+            or
+        (len(normal_nonbonded_forces) == 0 and len(custom_nonbonded_forces)
+         == 1 and len(custom_bond_forces) == 1)):
         raise NotImplementedError(
             "Currently only OpenMM systems that have:\n\n"
             "- vdW + electrostatics in a single built-in non-bonded force\n"
@@ -128,16 +125,14 @@ def _find_nonbonded_forces(
             "force\n"
             "- all of the above sans any electrostatics\n\n"
             "are supported. Please raise an issue on the GitHub issue tracker if "
-            "you'd like your use case supported."
-        )
+            "you'd like your use case supported.")
 
-    nonbonded_force = (
-        None if len(normal_nonbonded_forces) == 0 else normal_nonbonded_forces[0]
-    )
-    custom_nonbonded_force = (
-        None if len(custom_nonbonded_forces) == 0 else custom_nonbonded_forces[0]
-    )
-    custom_bond_force = None if len(custom_bond_forces) == 0 else custom_bond_forces[0]
+    nonbonded_force = (None if len(normal_nonbonded_forces) == 0 else
+                       normal_nonbonded_forces[0])
+    custom_nonbonded_force = (None if len(custom_nonbonded_forces) == 0 else
+                              custom_nonbonded_forces[0])
+    custom_bond_force = None if len(
+        custom_bond_forces) == 0 else custom_bond_forces[0]
 
     if custom_nonbonded_force is not None and nonbonded_force is not None:
         for i in range(nonbonded_force.getNumParticles()):
@@ -150,15 +145,13 @@ def _find_nonbonded_forces(
                 "The system contained both a `CustomNonbondedForce` and a "
                 "`NonbondedForce` with non-zero epsilon parameters. Please raise "
                 "an issue on the GitHub issue tracker if you'd like your use case "
-                "supported."
-            )
+                "supported.")
 
     return nonbonded_force, custom_nonbonded_force, custom_bond_force
 
 
-def _add_electrostatics_lambda(
-    nonbonded_force: openmm.NonbondedForce, alchemical_indices: list[set[int]]
-):
+def _add_electrostatics_lambda(nonbonded_force: openmm.NonbondedForce,
+                               alchemical_indices: list[set[int]]):
     """Modifies a standard non-bonded force so that the charges are scaled
     by `lambda_electrostatics`. The alchemical-chemical interactions will be linearly
     scaled while the alchemical-alchemical interactions will be quadratically scaled.
@@ -179,7 +172,11 @@ def _add_electrostatics_lambda(
 
     nonbonded_force.addGlobalParameter(LAMBDA_ELECTROSTATICS, 1.0)
 
-    alchemical_atom_indices = {i for values in alchemical_indices for i in values}
+    alchemical_atom_indices = {
+        i
+        for values in alchemical_indices
+        for i in values
+    }
 
     for i in range(nonbonded_force.getNumParticles()):
         if i not in alchemical_atom_indices:
@@ -192,9 +189,8 @@ def _add_electrostatics_lambda(
             # We don't need to scale already zero charges
             continue
 
-        nonbonded_force.addParticleParameterOffset(
-            LAMBDA_ELECTROSTATICS, i, charge, 0.0, 0.0
-        )
+        nonbonded_force.addParticleParameterOffset(LAMBDA_ELECTROSTATICS, i,
+                                                   charge, 0.0, 0.0)
 
     for i in range(nonbonded_force.getNumExceptions()):
         (
@@ -205,10 +201,8 @@ def _add_electrostatics_lambda(
             epsilon,
         ) = nonbonded_force.getExceptionParameters(i)
 
-        if (
-            idx_a not in alchemical_atom_indices
-            and idx_b not in alchemical_atom_indices
-        ):
+        if (idx_a not in alchemical_atom_indices
+                and idx_b not in alchemical_atom_indices):
             continue
 
         if numpy.isclose(charge_product.value_in_unit(_E * _E), 0.0):
@@ -216,15 +210,15 @@ def _add_electrostatics_lambda(
             continue
 
         assert (
-            idx_a in alchemical_atom_indices and idx_b in alchemical_atom_indices
+            idx_a in alchemical_atom_indices
+            and idx_b in alchemical_atom_indices
         ), "both atoms in an exception should be alchemically transformed"
 
-        nonbonded_force.setExceptionParameters(
-            i, idx_a, idx_b, charge_product * 0.0, sigma, epsilon
-        )
-        nonbonded_force.addExceptionParameterOffset(
-            LAMBDA_ELECTROSTATICS, i, charge_product, 0.0, 0.0
-        )
+        nonbonded_force.setExceptionParameters(i, idx_a, idx_b,
+                                               charge_product * 0.0, sigma,
+                                               epsilon)
+        nonbonded_force.addExceptionParameterOffset(LAMBDA_ELECTROSTATICS, i,
+                                                    charge_product, 0.0, 0.0)
 
 
 def _add_lj_vdw_lambda(
@@ -270,26 +264,31 @@ def _add_lj_vdw_lambda(
 
     custom_nonbonded_template = openmm.CustomNonbondedForce("")
     custom_nonbonded_template.setNonbondedMethod(
-        original_force.getNonbondedMethod()
-        if int(original_force.getNonbondedMethod()) not in {3, 4, 5}
-        else openmm.CustomNonbondedForce.CutoffPeriodic
-    )
-    custom_nonbonded_template.setCutoffDistance(original_force.getCutoffDistance())
+        original_force.getNonbondedMethod() if int(original_force.
+                                                   getNonbondedMethod()) not in
+        {3, 4, 5} else openmm.CustomNonbondedForce.CutoffPeriodic)
+    custom_nonbonded_template.setCutoffDistance(
+        original_force.getCutoffDistance())
     custom_nonbonded_template.setSwitchingDistance(
-        original_force.getSwitchingDistance()
-    )
+        original_force.getSwitchingDistance())
     custom_nonbonded_template.setUseSwitchingFunction(
-        original_force.getUseSwitchingFunction()
-    )
+        original_force.getUseSwitchingFunction())
     custom_nonbonded_template.setUseLongRangeCorrection(
-        original_force.getUseDispersionCorrection()
-    )
+        original_force.getUseDispersionCorrection())
 
     custom_nonbonded_template.addPerParticleParameter("sigma")
     custom_nonbonded_template.addPerParticleParameter("epsilon")
 
-    alchemical_atom_indices = {i for values in alchemical_indices for i in values}
-    persistent_atom_indices = {i for values in persistent_indices for i in values}
+    alchemical_atom_indices = {
+        i
+        for values in alchemical_indices
+        for i in values
+    }
+    persistent_atom_indices = {
+        i
+        for values in persistent_indices
+        for i in values
+    }
 
     original_parameters = {}
 
@@ -321,28 +320,28 @@ def _add_lj_vdw_lambda(
     aa_na_custom_nonbonded_force.addGlobalParameter(LAMBDA_STERICS, 1.0)
     aa_na_custom_nonbonded_force.setEnergyFunction(custom_alchemical_potential)
 
-    aa_na_custom_nonbonded_force.addInteractionGroup(
-        alchemical_atom_indices, persistent_atom_indices
-    )
+    aa_na_custom_nonbonded_force.addInteractionGroup(alchemical_atom_indices,
+                                                     persistent_atom_indices)
     # and each alchemical molecule so that things like ion pair interactions are
     # disabled
     for pair in itertools.combinations(alchemical_indices, r=2):
-        aa_na_custom_nonbonded_force.addInteractionGroup({*pair[0]}, {*pair[1]})
+        aa_na_custom_nonbonded_force.addInteractionGroup({*pair[0]},
+                                                         {*pair[1]})
 
     # Make sure that each alchemical molecule can also interact with themselves
     aa_aa_custom_nonbonded_force = copy.deepcopy(custom_nonbonded_template)
-    aa_aa_custom_nonbonded_force.setEnergyFunction(LJ_POTENTIAL + LORENTZ_BERTHELOT)
+    aa_aa_custom_nonbonded_force.setEnergyFunction(LJ_POTENTIAL +
+                                                   LORENTZ_BERTHELOT)
     aa_aa_custom_nonbonded_force.setNonbondedMethod(
         # Use a ``CutoffNonPeriodic`` to ensure solutes don't interact with
         # periodic copies of themselves
-        openmm.NonbondedForce.NoCutoff
-        if custom_nonbonded_template.getNonbondedMethod()
-        == openmm.NonbondedForce.NoCutoff
-        else openmm.NonbondedForce.CutoffNonPeriodic
-    )
+        openmm.NonbondedForce.NoCutoff if custom_nonbonded_template.
+        getNonbondedMethod() == openmm.NonbondedForce.NoCutoff else openmm.
+        NonbondedForce.CutoffNonPeriodic)
 
     for atom_indices in alchemical_indices:
-        aa_aa_custom_nonbonded_force.addInteractionGroup(atom_indices, atom_indices)
+        aa_aa_custom_nonbonded_force.addInteractionGroup(
+            atom_indices, atom_indices)
 
     return aa_na_custom_nonbonded_force, aa_aa_custom_nonbonded_force
 
@@ -389,26 +388,35 @@ def _add_custom_vdw_lambda(
         bond force.
     """
 
-    assert (
-        original_force.getNumInteractionGroups() == 0
-    ), "the custom force should not contain any interaction groups"
+    assert (original_force.getNumInteractionGroups() == 0
+            ), "the custom force should not contain any interaction groups"
 
     custom_nonbonded_template = copy.deepcopy(original_force)
 
-    alchemical_atom_indices = {i for values in alchemical_indices for i in values}
-    persistent_atom_indices = {i for values in persistent_indices for i in values}
+    alchemical_atom_indices = {
+        i
+        for values in alchemical_indices
+        for i in values
+    }
+    persistent_atom_indices = {
+        i
+        for values in persistent_indices
+        for i in values
+    }
 
     assert alchemical_atom_indices.isdisjoint(persistent_atom_indices)
 
     # Modify the original force so it only targets the chemical-chemical interactions
-    original_force.addInteractionGroup(persistent_atom_indices, persistent_atom_indices)
+    original_force.addInteractionGroup(persistent_atom_indices,
+                                       persistent_atom_indices)
 
     # Make sure that each alchemical molecule interacts with each chemical molecule,
     aa_na_custom_nonbonded_force = copy.deepcopy(custom_nonbonded_template)
     aa_na_custom_nonbonded_force.addGlobalParameter(LAMBDA_STERICS, 1.0)
 
     if custom_alchemical_potential is None:
-        energy_expression = aa_na_custom_nonbonded_force.getEnergyFunction().split(";")
+        energy_expression = aa_na_custom_nonbonded_force.getEnergyFunction(
+        ).split(";")
 
         for i, expression in enumerate(energy_expression):
             if "=" not in expression:
@@ -419,26 +427,25 @@ def _add_custom_vdw_lambda(
 
     aa_na_custom_nonbonded_force.setEnergyFunction(custom_alchemical_potential)
 
-    aa_na_custom_nonbonded_force.addInteractionGroup(
-        alchemical_atom_indices, persistent_atom_indices
-    )
+    aa_na_custom_nonbonded_force.addInteractionGroup(alchemical_atom_indices,
+                                                     persistent_atom_indices)
     # and all other alchemical molecules so that things like ion pair interactions
     # are included
     for pair in itertools.combinations(alchemical_indices, r=2):
-        aa_na_custom_nonbonded_force.addInteractionGroup({*pair[0]}, {*pair[1]})
+        aa_na_custom_nonbonded_force.addInteractionGroup({*pair[0]},
+                                                         {*pair[1]})
 
     # Make sure that each alchemical molecule can also interact with themselves
     # excluding any 1-2, 1-3, and 1-4 interactions
     aa_aa_custom_nonbonded_force = copy.deepcopy(custom_nonbonded_template)
     aa_aa_custom_nonbonded_force.setNonbondedMethod(
-        openmm.CustomNonbondedForce.NoCutoff
-        if custom_nonbonded_template.getNonbondedMethod()
-        == openmm.CustomNonbondedForce.NoCutoff
-        else openmm.CustomNonbondedForce.CutoffNonPeriodic
-    )
+        openmm.CustomNonbondedForce.NoCutoff if custom_nonbonded_template.
+        getNonbondedMethod() == openmm.CustomNonbondedForce.
+        NoCutoff else openmm.CustomNonbondedForce.CutoffNonPeriodic)
 
     for atom_indices in alchemical_indices:
-        aa_aa_custom_nonbonded_force.addInteractionGroup(atom_indices, atom_indices)
+        aa_aa_custom_nonbonded_force.addInteractionGroup(
+            atom_indices, atom_indices)
 
     return aa_na_custom_nonbonded_force, aa_aa_custom_nonbonded_force
 
@@ -491,8 +498,8 @@ def apply_fep(
     atom_indices = alchemical_indices + persistent_indices
     atom_indices = _find_v_sites(system, atom_indices)
 
-    alchemical_indices = atom_indices[: len(alchemical_indices)]
-    persistent_indices = atom_indices[len(alchemical_indices) :]
+    alchemical_indices = atom_indices[:len(alchemical_indices)]
+    persistent_indices = atom_indices[len(alchemical_indices):]
 
     (
         nonbonded_force,
@@ -505,19 +512,19 @@ def apply_fep(
 
     if custom_nonbonded_force is not None:
         for alchemical_force in _add_custom_vdw_lambda(
-            custom_nonbonded_force,
-            alchemical_indices,
-            persistent_indices,
-            custom_alchemical_potential,
+                custom_nonbonded_force,
+                alchemical_indices,
+                persistent_indices,
+                custom_alchemical_potential,
         ):
             system.addForce(alchemical_force)
 
     elif nonbonded_force is not None:
         for alchemical_force in _add_lj_vdw_lambda(
-            nonbonded_force,
-            alchemical_indices,
-            persistent_indices,
-            custom_alchemical_potential,
+                nonbonded_force,
+                alchemical_indices,
+                persistent_indices,
+                custom_alchemical_potential,
         ):
             system.addForce(alchemical_force)
 
@@ -541,14 +548,12 @@ def set_fep_lambdas(
     """
 
     if lambda_sterics is not None:
-        assert (
-            0.0 <= lambda_sterics <= 1.0
-        ), f"`{LAMBDA_STERICS}` must be between 0 and 1"
+        assert (0.0 <= lambda_sterics <=
+                1.0), f"`{LAMBDA_STERICS}` must be between 0 and 1"
         context.setParameter(LAMBDA_STERICS, lambda_sterics)
 
     if lambda_electrostatics is not None:
-        assert (
-            0.0 <= lambda_electrostatics <= 1.0
-        ), f"`{LAMBDA_ELECTROSTATICS}` must be between 0 and 1"
+        assert (0.0 <= lambda_electrostatics <=
+                1.0), f"`{LAMBDA_ELECTROSTATICS}` must be between 0 and 1"
 
         context.setParameter(LAMBDA_ELECTROSTATICS, lambda_electrostatics)

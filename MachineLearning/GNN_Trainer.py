@@ -45,6 +45,7 @@ except:
 
 
 class Trainer:
+
     def __init__(
         self,
         name="name",
@@ -60,7 +61,8 @@ class Trainer:
         self._model = None
         self._optimizer = None
         if device is None:
-            self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self._device = torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu")
         else:
             self._device = device
         self._path = path
@@ -135,23 +137,38 @@ class Trainer:
             "r2_electrostatics_lambda_1": R2Score(),
         }).to(self._device)
 
-    def update_metrics(
-        self, metrics, pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics
-    ):
+    def update_metrics(self, metrics, pre_energy, pre_forces, pre_sterics,
+                       pre_electrostatics, ldata, mask_sterics,
+                       mask_electrostatics):
         """ Update the metrics for a single batch and return the metric values """
 
-        lambda_1_mask = (ldata.lambda_sterics == 1) & (ldata.lambda_electrostatics == 1)
+        lambda_1_mask = (ldata.lambda_sterics
+                         == 1) & (ldata.lambda_electrostatics == 1)
         lambda_1_mask_exp = lambda_1_mask[ldata.batch]
         ret = {}
-        ret["r2_forces"] = metrics["r2_forces"](pre_forces.flatten(), ldata.forces.flatten()) 
-        ret["r2_sterics"] = metrics["r2_sterics"](pre_sterics[mask_sterics].flatten(), ldata.sterics_derivative[mask_sterics].flatten())
-        ret["r2_electrostatics"] = metrics["r2_electrostatics"](pre_electrostatics[mask_electrostatics].flatten(), ldata.electrostatics_derivative[mask_electrostatics].flatten())
+        ret["r2_forces"] = metrics["r2_forces"](pre_forces.flatten(),
+                                                ldata.forces.flatten())
+        ret["r2_sterics"] = metrics["r2_sterics"](
+            pre_sterics[mask_sterics].flatten(),
+            ldata.sterics_derivative[mask_sterics].flatten())
+        ret["r2_electrostatics"] = metrics["r2_electrostatics"](
+            pre_electrostatics[mask_electrostatics].flatten(),
+            ldata.electrostatics_derivative[mask_electrostatics].flatten())
         if lambda_1_mask.sum() > 1:
-            ret["r2_forces_lambda_1"] = metrics["r2_forces_lambda_1"](pre_forces[lambda_1_mask_exp].flatten(), ldata.forces[lambda_1_mask_exp].flatten())
-            ret["r2_sterics_lambda_1"] = metrics["r2_sterics_lambda_1"](pre_sterics[lambda_1_mask].flatten(), ldata.sterics_derivative[lambda_1_mask].flatten())
-            ret["r2_electrostatics_lambda_1"] = metrics["r2_electrostatics_lambda_1"](pre_electrostatics[lambda_1_mask].flatten(), ldata.electrostatics_derivative[lambda_1_mask].flatten())
+            ret["r2_forces_lambda_1"] = metrics["r2_forces_lambda_1"](
+                pre_forces[lambda_1_mask_exp].flatten(),
+                ldata.forces[lambda_1_mask_exp].flatten())
+            ret["r2_sterics_lambda_1"] = metrics["r2_sterics_lambda_1"](
+                pre_sterics[lambda_1_mask].flatten(),
+                ldata.sterics_derivative[lambda_1_mask].flatten())
+            ret["r2_electrostatics_lambda_1"] = metrics[
+                "r2_electrostatics_lambda_1"](
+                    pre_electrostatics[lambda_1_mask].flatten(),
+                    ldata.electrostatics_derivative[lambda_1_mask].flatten())
         else:
-            print("WARNING: lambda_1_mask.sum() <= 1. This may cause validation issues.")
+            print(
+                "WARNING: lambda_1_mask.sum() <= 1. This may cause validation issues."
+            )
 
         return ret
 
@@ -190,22 +207,27 @@ class Trainer:
                 self._optimizer.zero_grad()
                 ldata = ldata.to(self._device)
                 # Make prediction
-                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model( ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), False, ldata.batch, ldata.atom_features,)
-                
+                pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
+                    ldata.pos,
+                    ldata.lambda_sterics,
+                    ldata.lambda_electrostatics,
+                    torch.tensor(0.0),
+                    False,
+                    ldata.batch,
+                    ldata.atom_features,
+                )
 
-                mask_sterics = True #(ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
-                mask_electrostatics = True #(ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
+                mask_sterics = True  #(ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
+                mask_electrostatics = True  #(ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
 
-                
                 loss, metric_dict = self.calculate_loss(
                     pre_energy=pre_energy,
                     pre_forces=pre_forces,
                     pre_sterics=pre_sterics,
                     pre_electrostatics=pre_electrostatics,
                     ldata=ldata,
-                    mask_sterics = mask_sterics, 
-                    mask_electrostatics = mask_electrostatics
-                )
+                    mask_sterics=mask_sterics,
+                    mask_electrostatics=mask_electrostatics)
                 '''
                 if metric_dict["sterics_loss"] > 20000:
                     print(ldata.lambda_sterics[mask_sterics], 
@@ -227,36 +249,30 @@ class Trainer:
                         pre_sterics,
                         pre_electrostatics,
                         ldata,
-                        mask_sterics, 
+                        mask_sterics,
                         mask_electrostatics,
-                    )
-                )
+                    ))
 
                 for key, value in metric_dict.items():
                     metric_buffer[key].append(value.item())
 
                 if d % CONFIG.logging_freq == 0:
                     self.log(
-                        "train",
-                        {
+                        "train", {
                             key: np.mean(value)
                             for key, value in metric_buffer.items()
-                        }
-                    )
+                        })
                     metric_buffer = defaultdict(list)
 
                 if clip_gradients != 0:
                     clip_grad_norm_(self._model.parameters(), clip_gradients)
 
                 self._optimizer.step()
-                pbar.set_description(
-                    "Run %i avg time: %f3 loss: %f3"
-                    % (
-                        i,
-                        (time.time() - start) / (d + 1),
-                        np.nanmean(total_loss),
-                    )
-                )
+                pbar.set_description("Run %i avg time: %f3 loss: %f3" % (
+                    i,
+                    (time.time() - start) / (d + 1),
+                    np.nanmean(total_loss),
+                ))
                 #break
             #continue
 
@@ -281,13 +297,11 @@ class Trainer:
             for l, ldata in enumerate(loader):
                 ldata.to(self._device)
                 pre_energy, pre_forces = self._model(ldata)
-                loss = self.calculate_loss(
-                    pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata
-                )
+                loss = self.calculate_loss(pre_energy, pre_forces, pre_sterics,
+                                           pre_electrostatics, ldata)
                 if np.max(loss.to("cpu").tolist()) > error_tolerance:
                     list_of_problematic_entries.append(
-                        [ldata.smiles, ldata.molid, ldata.confid, ldata.hdf5]
-                    )
+                        [ldata.smiles, ldata.molid, ldata.confid, ldata.hdf5])
 
         for i, data in enumerate(self._training_data):
             loader = DataLoader(data, batch_size=1)
@@ -298,11 +312,10 @@ class Trainer:
                 loss = self.calculate_loss(pre_energy, pre_forces, ldata)
                 if np.max(loss.to("cpu").tolist()) > error_tolerance:
                     list_of_problematic_entries.append(
-                        [ldata.smiles, ldata.molid, ldata.confid, ldata.hdf5]
-                    )
+                        [ldata.smiles, ldata.molid, ldata.confid, ldata.hdf5])
 
         return list_of_problematic_entries
-  
+
     def validate_model(self, batch_size):
         metrics = self.create_metrics()
         loader = DataLoader(self._validation_data, batch_size=batch_size)
@@ -311,34 +324,35 @@ class Trainer:
         lambdas = []
         for l, ldata in enumerate(tqdm(loader)):
             ldata.to(self._device)
-            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(ldata.pos, ldata.lambda_sterics, ldata.lambda_electrostatics, torch.tensor(0.0), False, ldata.batch, ldata.atom_features,)
-            mask_sterics = (ldata.lambda_sterics != 0.0) & (ldata.lambda_sterics != 1.0)
-            mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (ldata.lambda_electrostatics != 1.0)
-            loss, loss_dict = self.calculate_loss(
-                pre_energy, pre_forces, pre_sterics, pre_electrostatics, ldata, mask_sterics, mask_electrostatics
+            pre_energy, pre_forces, pre_sterics, pre_electrostatics = self._model(
+                ldata.pos,
+                ldata.lambda_sterics,
+                ldata.lambda_electrostatics,
+                torch.tensor(0.0),
+                False,
+                ldata.batch,
+                ldata.atom_features,
             )
+            mask_sterics = (ldata.lambda_sterics
+                            != 0.0) & (ldata.lambda_sterics != 1.0)
+            mask_electrostatics = (ldata.lambda_electrostatics != 0.0) & (
+                ldata.lambda_electrostatics != 1.0)
+            loss, loss_dict = self.calculate_loss(pre_energy, pre_forces,
+                                                  pre_sterics,
+                                                  pre_electrostatics, ldata,
+                                                  mask_sterics,
+                                                  mask_electrostatics)
 
             lambdas.append(ldata.lambda_electrostatics.detach().to('cpu'))
             derivatives.append(pre_electrostatics.detach().to('cpu'))
             for key, value in loss_dict.items():
                 losses[key].append(value.item())
-            
-            self.update_metrics(
-                metrics,
-                pre_energy,
-                pre_forces,
-                pre_sterics,
-                pre_electrostatics,
-                ldata,
-                mask_sterics,
-                mask_electrostatics
-            )
-            
 
+            self.update_metrics(metrics, pre_energy, pre_forces, pre_sterics,
+                                pre_electrostatics, ldata, mask_sterics,
+                                mask_electrostatics)
 
-        results = {
-            key: np.mean(value) for key, value in losses.items()
-        }
+        results = {key: np.mean(value) for key, value in losses.items()}
         '''
         results.update(
             {
@@ -348,9 +362,7 @@ class Trainer:
         )
         '''
         return results
-    
 
-    
     def save_model(self):
 
         torch.save(self._model, self._path + "/" + self._name + ".pt")
@@ -362,14 +374,12 @@ class Trainer:
 
     def save_dict(self):
         self._model.eval()
-        torch.save(
-            self._model.state_dict(), self._path + "/" + self._name + "model.dict"
-        )
+        torch.save(self._model.state_dict(),
+                   self._path + "/" + self._name + "model.dict")
 
     def load_dict(self):
         self._model.load_state_dict(
-            torch.load(self._path + "/" + self._name + "model.dict")
-        )
+            torch.load(self._path + "/" + self._name + "model.dict"))
         self._model.eval()
 
     def load_model(self, path=None):

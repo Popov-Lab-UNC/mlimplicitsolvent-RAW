@@ -46,10 +46,12 @@ def to_off_mol(data):
 
     return off_mol
 
+
 def to_openmm_topology(data):
     """Converts a MDData object to a OpenMM topology"""
     off_mol = to_off_mol(data)
     return off_mol.to_topology().to_openmm()
+
 
 def to_openmm_system(
     data,
@@ -58,7 +60,7 @@ def to_openmm_system(
     constraints=app.HBonds,
     P=1.0 * unit.atmosphere,
     T=300.0 * unit.kelvin,
-    nonbonded_cutoff=0.9*unit.nanometer,
+    nonbonded_cutoff=0.9 * unit.nanometer,
 ):
     """Creates an OBC2 system from a MDData object"""
     off_mol = to_off_mol(data)
@@ -102,6 +104,7 @@ def to_openmm_system(
 
     return system, modeller
 
+
 def get_gb_forces(data):
     system, modeller = to_openmm_system(data)
     topology = modeller.topology
@@ -110,23 +113,27 @@ def get_gb_forces(data):
         if isinstance(force, mm.CustomGBForce):
             force.setForceGroup(1)
 
-    integrator = mm.LangevinIntegrator(300*unit.kelvin, 1/unit.picosecond, 0.002*unit.picoseconds)
+    integrator = mm.LangevinIntegrator(300 * unit.kelvin, 1 / unit.picosecond,
+                                       0.002 * unit.picoseconds)
     simulation = app.Simulation(topology, system, integrator)
 
-    pos = data.positions.numpy()*unit.nanometers
+    pos = data.positions.numpy() * unit.nanometers
     simulation.context.setPositions(pos)
 
-    gb_forces = simulation.context.getState(getForces=True, groups=1<<1).getForces(asNumpy=True)
-    gb_forces = gb_forces.value_in_unit(unit.kilojoules_per_mole/unit.nanometer)
+    gb_forces = simulation.context.getState(
+        getForces=True, groups=1 << 1).getForces(asNumpy=True)
+    gb_forces = gb_forces.value_in_unit(unit.kilojoules_per_mole /
+                                        unit.nanometer)
 
     return gb_forces
+
 
 def main():
     dataset = BigBindSolvDataset("val", 0)
     Y_true = []
     Y_pred = []
     for data in tqdm(dataset):
-        if len(Y_true) > 20: # change this! Use all the values
+        if len(Y_true) > 20:  # change this! Use all the values
             break
         # we want to get rid of this -- add lambda parameters to GB
         if data.lambda_electrostatics == 1 and data.lambda_sterics == 1:
@@ -137,5 +144,5 @@ def main():
             Y_true.append(data.forces.numpy())
             Y_pred.append(gb_forces)
             # need to save the forces
-    
+
     # now evaluate metrics on Y_true and Y_pred

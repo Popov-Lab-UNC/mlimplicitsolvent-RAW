@@ -9,6 +9,7 @@ from fep import apply_fep, LAMBDA_STERICS, LAMBDA_ELECTROSTATICS, set_fep_lambda
 import os
 from lr_complex import LRComplex, get_lr_complex
 
+
 #taken from sim.py and changed from stepsize and integrator debugging
 def make_modified_alchemical_system(system):
     """ Created a new alchemically modified LR system"""
@@ -17,10 +18,11 @@ def make_modified_alchemical_system(system):
     # create a new alchemical system
     alchemical_system = apply_fep(system.system, lig_indices, water_indices)
 
-    integrator = mm.LangevinMiddleIntegrator(300*unit.kelvin,
-                                        1.0/unit.picosecond,
-                                        1.0*unit.femtosecond)
-    simulation = app.Simulation(system.topology, alchemical_system, integrator, system.platform)
+    integrator = mm.LangevinMiddleIntegrator(300 * unit.kelvin,
+                                             1.0 / unit.picosecond,
+                                             1.0 * unit.femtosecond)
+    simulation = app.Simulation(system.topology, alchemical_system, integrator,
+                                system.platform)
 
     lr_system = copy.copy(system)
     lr_system.system = alchemical_system
@@ -30,9 +32,9 @@ def make_modified_alchemical_system(system):
     return lr_system
 
 
-
 #taken from epsilon_calculation and changed from modified system
-def runModSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics, lambda_sterics):
+def runModSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics,
+              lambda_sterics):
 
     out_file = os.path.join(sim_file_path, "sim.h5")
     simulation_file = os.path.join(sim_file_path, "simulation.dcd")
@@ -41,15 +43,12 @@ def runModSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics, l
         os.remove(simulation_file)
 
     #load all cached files that can be reused
-    
+
     system_file = os.path.join(base_file_path, "system")
-    
+
     system_vac_file = os.path.join(base_file_path, "system_vac")
     system = LRComplex.load(system_file, cuda=False)
     system_vac = LRComplex.load(system_vac_file, cuda=False)
-    
-    
-
 
     vac_indicies = system.lig_indices
     #freeze ligand
@@ -61,19 +60,21 @@ def runModSim(base_file_path, sim_file_path, steps, dp, lambda_electrostatics, l
 
     alc_system.set_positions(system.get_positions())
 
-    set_fep_lambdas(alc_system.simulation.context, lambda_sterics, lambda_electrostatics)
-    set_fep_lambdas(alc_system_vac.simulation.context, lambda_sterics, lambda_electrostatics)
+    set_fep_lambdas(alc_system.simulation.context, lambda_sterics,
+                    lambda_electrostatics)
+    set_fep_lambdas(alc_system_vac.simulation.context, lambda_sterics,
+                    lambda_electrostatics)
 
     simulation = alc_system.simulation
     simulation.reporters = []
 
     simulation.minimizeEnergy()
-    reporter = SolvDatasetReporterWithCustomDP(out_file, alc_system_vac, 500, dp)
+    reporter = SolvDatasetReporterWithCustomDP(out_file, alc_system_vac, 500,
+                                               dp)
     simulation.reporters.append(reporter)
     simulation.reporters.append(DCDReporter(simulation_file, 100))
 
     simulation.step(steps)
-
 
 
 if __name__ == "__main__":
@@ -82,9 +83,9 @@ if __name__ == "__main__":
     non_sim = "Non_Integrator"
     sim_path = os.path.join(file, sim)
     non_sim_path = os.path.join(file, non_sim)
-    if(not os.path.exists(sim_path)):
+    if (not os.path.exists(sim_path)):
         os.mkdir(sim_path)
-    if(not os.path.exists(non_sim_path)):
+    if (not os.path.exists(non_sim_path)):
         os.mkdir(non_sim_path)
     print("Running Middle Integrator with 1fs")
     runModSim(file, sim_path, 100000, 1e-5, 1, 1)

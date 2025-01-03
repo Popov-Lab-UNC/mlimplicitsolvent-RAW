@@ -8,7 +8,7 @@ from terrace.batch import _batch_repr
 class MDData(ter.Batchable):
     """ Stores all the data we need for training
     the neural network """
-    
+
     pos: torch.Tensor
     charges: torch.Tensor
     atomic_numbers: torch.Tensor
@@ -19,17 +19,18 @@ class MDData(ter.Batchable):
     sterics_derivative: torch.Tensor
     electrostatics_derivative: torch.Tensor
     atom_features: torch.Tensor
-    
+
     @staticmethod
     def get_batch_type():
         return MDBatch
+
 
 class MDBatch(ter.BatchBase[MDData]):
     """ A batch of MDData. This automatically generates
     the 'batch' tensor needed by TorchMD-Net. This is
     a tensor that contains the molecule index for each
     atom in the batch. """
-    
+
     def __init__(self, items: List[MDData]):
 
         # concatenate all the tensors
@@ -46,7 +47,7 @@ class MDBatch(ter.BatchBase[MDData]):
         self.batch = torch.zeros(self.pos.shape[0], dtype=torch.long)
         cur_idx = 0
         for i, item in enumerate(items):
-            self.batch[cur_idx:cur_idx+len(item.pos)] = i
+            self.batch[cur_idx:cur_idx + len(item.pos)] = i
             cur_idx += len(item.pos)
 
     def asdict(self):
@@ -58,7 +59,7 @@ class MDBatch(ter.BatchBase[MDData]):
         ret = f"MDBatch(\n"
         for key, val in self.asdict().items():
             val_str = _batch_repr(val).replace("\n", "\n" + indent)
-            ret += indent +  f"{key}={val_str}\n"
+            ret += indent + f"{key}={val_str}\n"
         ret += ")"
         return ret
 
@@ -68,6 +69,7 @@ class MDBatch(ter.BatchBase[MDData]):
         for key, val in self.asdict().items():
             setattr(ret, key, val.to(device))
         return ret
+
 
 '''
 
