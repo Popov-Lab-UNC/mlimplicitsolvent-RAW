@@ -389,3 +389,42 @@ class Trainer:
         else:
             self._model = torch.load(path)
         # self._model.eval()
+
+        
+
+    def initialize_optimizer(self, lr, schedule=None):
+        assert self._model != None
+
+        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_available and torch.cuda.is_available()
+        extra_args = dict(fused=True) if use_fused else dict()
+        self._optimizer = torch.optim.AdamW(
+            self._model.parameters(), lr=lr, **extra_args
+        )
+
+        if schedule == "Plateau":
+            self._scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self._optimizer, verbose=True, factor=0.8
+            )
+        elif schedule == "Exponential":
+            self._scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                self._optimizer, gamma=0.01 ** (1 / 1000)
+            )
+        elif schedule == "Exponential100":
+            self._scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                self._optimizer, gamma=0.01 ** (1 / 100)
+            )
+        elif schedule == "Exponential10":
+            self._scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                self._optimizer, gamma=0.01 ** (1 / 10)
+            )
+        elif schedule == "Exponential30":
+            self._scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                self._optimizer, gamma=0.01 ** (1 / 30)
+            )
+        elif schedule == "Exponential50":
+            self._scheduler = torch.optim.lr_scheduler.ExponentialLR(
+                self._optimizer, gamma=0.01 ** (1 / 50)
+            )
+        else:
+            self._scheduler = Dummy_scheduler()
