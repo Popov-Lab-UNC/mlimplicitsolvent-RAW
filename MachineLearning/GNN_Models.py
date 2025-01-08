@@ -338,6 +338,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             nn.Linear(1, CONFIG.electrostatics_hidden_dim), nn.SiLU(),
             nn.Linear(CONFIG.electrostatics_hidden_dim, 1), nn.Sigmoid())
         self.gnn_params = None
+        self.batch = None 
 
     def forward(self,
                 positions,
@@ -375,7 +376,10 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 -1, 1)
 
         if batch is None:
-            batch = torch.zeros(size=(len(positions), )).to(torch.long)
+            if self.gnn_params is not None: 
+                batch = self.batch
+            else:
+                batch = torch.zeros(size=(len(self.gnn_params), )).to(torch.long)
 
         if self.gnn_params is not None:
             x = torch.cat([

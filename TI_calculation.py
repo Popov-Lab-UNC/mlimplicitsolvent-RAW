@@ -93,8 +93,14 @@ class AI_Solvation_calc_TI:
                                   f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = self.compute_atom_features().to(self.device)
+            gnn_params = torch.cat((
+                torch.tensor(self.compute_atom_features()),
+                torch.full((len(avg_structure.xyz[0]), 1), lambda_elec),
+                torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
+                ),dim=-1)
+
             self.model.gnn_params = gnn_params
+            self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)
             torch.jit.script(self.model).save(cache_path)
 
         self.model_force = TorchForce(cache_path)
@@ -134,6 +140,7 @@ class AI_Solvation_calc_TI:
                 elementary_charge)
             for idx in range(self.system.getNumParticles())
         ])
+        print(f"Net Charge: {round(sum(self.charges))}")
 
     def savePDB(self, path):
         m = Chem.MolFromSmiles(self.smiles)
@@ -333,7 +340,27 @@ class AI_Solvation_calc_TI:
             torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
         ),
                                dim=-1)
+        
+        gnn_params = gnn_params.repeat(len(traj[start_index:]))
 
+        batch = torch.arange(0, len(traj[start_index:]))
+        batch = batch.repeat_interleave(len(traj[0].xyz))
+
+        positions = torch.from_numpy(traj[start_index:].xyz).float().reshape(-1, 3)
+
+        lambda_elecs = torch.full((len(traj[start_index:]), 1), lambda_elec)
+        lambda_sters = torch.full((len(traj[start_index:]), 1), lambda_ster)
+
+        _, _, sterics, electrostatics = self.model(positions, lambda_sters, lambda_elecs, torch.tensor(0.0), True, batch, gnn_params)
+
+        return (lambda_elec.item(),
+                (torch.mean(torch.tensor(electrostatics).detach()).item()),
+                lambda_ster.item(),
+                (torch.mean(torch.tensor(sterics).detach()).item()))
+
+
+        
+        '''
         for idx, coords in enumerate(traj[start_index:].xyz):
             positions = torch.from_numpy(coords).to(self.device)
             positions = positions.float()
@@ -341,8 +368,8 @@ class AI_Solvation_calc_TI:
             lambda_elec = lambda_elec.float()
             U, F, steric, electrostatic = self.model(
                 positions, lambda_ster, lambda_elec,
-                torch.tensor(0.0).to(self.device), True, None, gnn_params)
-            '''
+                torch.tensor(0.0).to(self.device), True, batch, gnn_params)
+            
             if(lambda_ster == 0.7):
                 print(f"Positions: {positions}")
                 print(f"GNN_Params: {gnn_params}")
@@ -353,7 +380,7 @@ class AI_Solvation_calc_TI:
                 print(f"Forces: {F}")
                 print(f"sterics: {steric}")
                 print(f"elec: {electrostatic}")
-            '''
+            
 
             sterics.append(steric)
             electrostatics.append(electrostatic)
@@ -361,7 +388,7 @@ class AI_Solvation_calc_TI:
                 (torch.mean(torch.tensor(electrostatics).detach()).item()),
                 lambda_ster.item(),
                 (torch.mean(torch.tensor(sterics).detach()).item()))
-
+        '''
     def collateInfo(self):
         derivatives = []
         self.set_model()
