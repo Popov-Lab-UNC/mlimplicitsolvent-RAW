@@ -473,7 +473,7 @@ if __name__ == "__main__":
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/trials/test_check_MBAR'
+    path = '/work/users/r/d/rdey/test_check_MBAR'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path,
                             smiles=smile,
