@@ -31,10 +31,10 @@ model = GNN3_scale_96(max_num_neighbors=10000,
                       unique_radii=tot_unique,
                       jittable=True)
 trainer._training_data = MAFBigBind(
-    "train", dir='/work/users/r/d/rdey/single_molecule_v1')
+    "train_no_charges", dir='/work/users/r/d/rdey/BigBind500k/bigbind_solv/')
 trainer._validation_data = MAFBigBind(
-    "val", dir='/work/users/r/d/rdey/single_molecule_v1')
-trainer.model = model
+    "test_re_no_charges", dir='/work/users/r/d/rdey/BigBind500k/bigbind_solv/')
+trainer._model = model
 
 trainer.initialize_optimizer(CONFIG.learn_rate, CONFIG.lr_scheduler)
 trainer.set_lossfunction(calc_all_losses)

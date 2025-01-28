@@ -43,7 +43,7 @@ class AI_Solvation_calc:
             0.85, 0.9, 1
         ]
         self.n_steps = 10000
-        self.report_interval = 1000
+        self.report_interval = 500
         self._T = 300 * kelvin
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
@@ -63,6 +63,7 @@ class AI_Solvation_calc:
                                    unique_radii=tot_unique,
                                    jittable=True).to(self.device)
         self.model.load_state_dict(self.model_dict)
+        self.model.to(self.device)
         self.model.eval()
         self.smiles = smiles
         self.name = name
@@ -80,14 +81,16 @@ class AI_Solvation_calc:
                                   f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = self.compute_atom_features().to(self.device)
+            gnn_params = torch.tensor(self.compute_atom_features())
+
             self.model.gnn_params = gnn_params
+            self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)
             torch.jit.script(self.model).save(cache_path)
 
         self.model_force = TorchForce(cache_path)
         self.model_force.addGlobalParameter("lambda_sterics", 1.0)
         self.model_force.addGlobalParameter("lambda_electrostatics", 1.0)
-        self.model_force.addGlobalParameter("vaccum", 1.0)
+        self.model_force.addGlobalParameter("retrieve_forces", 1.0)
         #self.model_force.addGlobalParameter("atom_features", 1.0)
         #self.model_force.addGlobalParameter('batch', -1.0)
         self.model_force.setOutputsForces(True)
@@ -202,7 +205,7 @@ class AI_Solvation_calc:
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics",
                                         lambda_electrostatics)
-        simulation.context.setParameter("vaccum", vaccum)
+        simulation.context.setParameter("retrieve_forces", 1.0)
 
         simulation.context.setPositions(self.PDB.positions)
 
@@ -220,13 +223,18 @@ class AI_Solvation_calc:
         u = np.zeros(len(traj.time))
         e_lambda_ster = torch.scalar_tensor(e_lambda_ster).to(self.device)
         e_lambda_elec = torch.scalar_tensor(e_lambda_elec).to(self.device)
+
         for idx, coords in enumerate(traj.xyz):
+
             positions = torch.from_numpy(coords).to(self.device)
+            batch = torch.zeros(size=(len(positions), )).to(torch.long) 
 
             factor = self.model(positions, e_lambda_ster, e_lambda_elec,
-                                torch.tensor(0.0), True)
+                                torch.tensor(0.0).to(self.device), batch, None)
+
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()
+
             U = self.curr_simulation_vac.context.getState(
                 getEnergy=True).getPotentialEnergy()
             val = (U +
@@ -240,7 +248,7 @@ class AI_Solvation_calc:
             "energy_unit": "kT",
         }
 
-        #df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
+        df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
         return df
 
     def solv_u_nk(self):
@@ -414,8 +422,7 @@ class AI_Solvation_calc:
     def compute_delta_F(self):
 
         print(" -- Starting Calculation of Hydration Energy -- ")
-        self.model.gnn_params = self.compute_atom_features(
-        )  #idk why I am forced to do this but it helps for sum reason?
+        self.model.gnn_params = torch.tensor(self.compute_atom_feautres())  #idk why I am forced to do this but it helps for sum reason?
         solv = self.solv_u_nk()
         #vac = self.vac_u_nk()
         #mbar_vac = MBAR()
@@ -432,6 +439,7 @@ class AI_Solvation_calc:
 
 
 class runSims:
+
 
     def __init__(self, model, path):
         self.model = model
@@ -460,12 +468,12 @@ import sys
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/SingleMolecule_V2model.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET5Kmodel.dict'
 
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/trials/solvent_check'
+    path = '/work/users/r/d/rdey/trials/test_check_MBAR'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path,
                             smiles=smile,

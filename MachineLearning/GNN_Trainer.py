@@ -1,6 +1,7 @@
 from collections import defaultdict
 import time
 import warnings
+import inspect
 
 from tqdm import tqdm
 import numpy as np
@@ -26,13 +27,9 @@ except:
 
 import terrace as ter
 from sklearn.metrics import mean_squared_error
-
 from functools import lru_cache
-from Simulation.Simulator import Simulator
 from openmm.app.internal.customgbforces import GBSAGBn2Force
-from ForceField.Forcefield import Vacuum_force_field, OpenFF_forcefield_GBNeck2
 from openmm import NonbondedForce
-from Data.Datahandler import hdf5_storage
 from MachineLearning.GNN_Loss_Functions import *
 from torchmetrics import R2Score
 
@@ -182,6 +179,7 @@ class Trainer:
         assert self._optimizer != None
         assert self._model != None
         self.init_wandb(self._name)
+        self._model.to(self._device)
         self._model.train()
 
         val_results = []
@@ -428,3 +426,7 @@ class Trainer:
             )
         else:
             self._scheduler = Dummy_scheduler()
+
+class Dummy_scheduler:
+    def step(self, validation_loss=0.0):
+        pass

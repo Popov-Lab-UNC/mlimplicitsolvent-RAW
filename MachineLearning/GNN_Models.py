@@ -376,20 +376,15 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 -1, 1)
 
         if batch is None:
-            if self.gnn_params is not None: 
-                batch = self.batch
-            else:
-                batch = torch.zeros(size=(len(self.gnn_params), )).to(torch.long)
+            batch = torch.zeros(size=(len(self.gnn_params), )).to(torch.long)
 
         if self.gnn_params is not None:
             x = torch.cat([
                 self.gnn_params.to(torch.float32),
-                torch.full((positions.detach().shape[0], 1),
-                           lambda_electrostatics.item()),
-                torch.full(
-                    (positions.detach().shape[0], 1), lambda_sterics.item())
-            ],
-                          dim=-1)
+                torch.full((positions.detach().shape[0], 1), lambda_electrostatics.item()),
+                torch.full((positions.detach().shape[0], 1), lambda_sterics.item())
+                ],
+                dim=-1)
 
         elif torch.is_tensor(atom_features):
             x = atom_features
@@ -478,7 +473,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 #print((energies.sum(), forces))
                 return (energies.sum(), forces)
 
-        #'''
+        '''
         # Return prediction and Gradients with respect to data
         gradients_sterics = torch.autograd.grad([energies.sum()],
                                                 grad_outputs=grad_output,

@@ -1,7 +1,7 @@
 bigbind_solv_dir: /work/users/r/d/rdey/BigBindSolvV2/BigBindSolvV2
 batch_size: 100
 learn_rate: 1e-5
-num_epochs: 300
+num_epochs: 75
 clip_gradients: 1
 lr_scheduler: 'None' # no learning rate scheduler
 
@@ -17,5 +17,5 @@ loss:
   sterics_weight: 1.0
   electrostatics_weight: 1.0
 
-name: SingleMolecule_V2
+name: 280KDATASET5K
 use_wandb: True

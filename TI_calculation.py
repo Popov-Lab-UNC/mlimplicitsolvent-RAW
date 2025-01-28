@@ -93,11 +93,7 @@ class AI_Solvation_calc_TI:
                                   f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = torch.cat((
-                torch.tensor(self.compute_atom_features()),
-                torch.full((len(avg_structure.xyz[0]), 1), lambda_elec),
-                torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
-                ),dim=-1)
+            gnn_params = torch.tensor(self.compute_atom_features())
 
             self.model.gnn_params = gnn_params
             self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)
@@ -340,7 +336,8 @@ class AI_Solvation_calc_TI:
             torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
         ),
                                dim=-1)
-        
+        batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)                   
+        '''
         gnn_params = gnn_params.repeat(len(traj[start_index:]))
 
         batch = torch.arange(0, len(traj[start_index:]))
@@ -357,8 +354,6 @@ class AI_Solvation_calc_TI:
                 (torch.mean(torch.tensor(electrostatics).detach()).item()),
                 lambda_ster.item(),
                 (torch.mean(torch.tensor(sterics).detach()).item()))
-
-
         
         '''
         for idx, coords in enumerate(traj[start_index:].xyz):
@@ -370,25 +365,13 @@ class AI_Solvation_calc_TI:
                 positions, lambda_ster, lambda_elec,
                 torch.tensor(0.0).to(self.device), True, batch, gnn_params)
             
-            if(lambda_ster == 0.7):
-                print(f"Positions: {positions}")
-                print(f"GNN_Params: {gnn_params}")
-                print(f"lambda_ster: {lambda_ster}")
-                print(f"lambda_ster: {lambda_elec}")
-
-                print(f"energy: {U}")
-                print(f"Forces: {F}")
-                print(f"sterics: {steric}")
-                print(f"elec: {electrostatic}")
-            
-
             sterics.append(steric)
             electrostatics.append(electrostatic)
         return (lambda_elec.item(),
                 (torch.mean(torch.tensor(electrostatics).detach()).item()),
                 lambda_ster.item(),
                 (torch.mean(torch.tensor(sterics).detach()).item()))
-        '''
+        #'''
     def collateInfo(self):
         derivatives = []
         self.set_model()
@@ -432,12 +415,12 @@ class AI_Solvation_calc_TI:
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/Best_Trained_Models/MAF_5_Layers_V3model.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET5Kmodel.dict'
 
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/test_check'
+    path = '/work/users/r/d/rdey/test_check_500'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc_TI(model_dict=model_path,
                                smiles=smile,
