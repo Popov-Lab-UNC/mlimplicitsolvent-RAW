@@ -227,18 +227,17 @@ class AI_Solvation_calc:
         for idx, coords in enumerate(traj.xyz):
 
             positions = torch.from_numpy(coords).to(self.device)
-            batch = torch.zeros(size=(len(positions), )).to(torch.long) 
+            batch = torch.zeros(size=(len(positions), )).to(torch.long)
 
             factor = self.model(positions, e_lambda_ster, e_lambda_elec,
-                                torch.tensor(0.0).to(self.device), batch, None)
-
+                                torch.tensor(1.0).to(self.device), batch)
+            
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()
 
             U = self.curr_simulation_vac.context.getState(
                 getEnergy=True).getPotentialEnergy()
-            val = (U +
-                   (factor[0].item() * kilojoule_per_mole)) / (kB * self._T)
+            val = (U + (factor[0].item() * kilojoule_per_mole)) / (kB * self._T)
             u[idx] = float(val)
         return u
 
@@ -422,7 +421,7 @@ class AI_Solvation_calc:
     def compute_delta_F(self):
 
         print(" -- Starting Calculation of Hydration Energy -- ")
-        self.model.gnn_params = torch.tensor(self.compute_atom_feautres())  #idk why I am forced to do this but it helps for sum reason?
+        self.model.gnn_params = torch.tensor(self.compute_atom_features())  #idk why I am forced to do this but it helps for sum reason?
         solv = self.solv_u_nk()
         #vac = self.vac_u_nk()
         #mbar_vac = MBAR()

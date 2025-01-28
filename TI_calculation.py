@@ -93,7 +93,12 @@ class AI_Solvation_calc_TI:
                                   f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = torch.tensor(self.compute_atom_features())
+            gnn_params = torch.cat((
+                    torch.tensor(self.compute_atom_features()),
+                    torch.full((len(avg_structure.xyz[0]), 1), lambda_elec),
+                    torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
+                ),
+                                    dim=-1)
 
             self.model.gnn_params = gnn_params
             self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)

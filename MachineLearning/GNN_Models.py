@@ -286,9 +286,9 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                  device=None,
                  jittable=False,
                  unique_radii=None,
-                 hidden=128):
+                 hidden=192):
 
-        self.gbneck_radius = 10.0
+        self.gbneck_radius = 13.0
         self._gnn_radius = radius
         GNN_GBNeck_2.__init__(self,
                               radius=self.gbneck_radius,
@@ -306,25 +306,25 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             self.interaction1 = IN_layer_all_swish_2pass(
                 5 + 5, hidden, radius, device, hidden).jittable()
             self.interaction2 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden).jittable()
-            self.interaction3 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden).jittable()
-            self.interaction4 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden).jittable()
-            self.interaction5 = IN_layer_all_swish_2pass(
                 hidden + hidden, 2, radius, device, hidden).jittable()
+            #self.interaction3 = IN_layer_all_swish_2pass(
+                #hidden + hidden, 2, radius, device, hidden).jittable()
+            #self.interaction4 = IN_layer_all_swish_2pass(
+                #hidden + hidden, 2, radius, device, hidden).jittable()
+            #self.interaction5 = IN_layer_all_swish_2pass(
+                #hidden + hidden, , radius, device, hidden).jittable()
             #self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
         else:
             self.interaction1 = IN_layer_all_swish_2pass(
                 5 + 5, hidden, radius, device, hidden)
             self.interaction2 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden)
-            self.interaction3 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden)
-            self.interaction4 = IN_layer_all_swish_2pass(
-                hidden + hidden, hidden, radius, device, hidden).jittable()
-            self.interaction4 = IN_layer_all_swish_2pass(
-                hidden + hidden, 2, radius, device, hidden).jittable()
+                hidden + hidden, 2, radius, device, hidden)
+            #self.interaction3 = IN_layer_all_swish_2pass(
+                #hidden + hidden, 2, radius, device, hidden)
+            #self.interaction4 = IN_layer_all_swish_2pass(
+                #hidden + hidden, hidden, radius, device, hidden).jittable()
+            #self.interaction4 = IN_layer_all_swish_2pass(
+                #hidden + hidden, 2, radius, device, hidden).jittable()
             #self.interaction6 = IN_layer_all_swish_2pass(hidden + hidden, 2,radius,device,hidden).jittable()
 
         self._silu = torch.nn.SiLU()
@@ -339,6 +339,13 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
             nn.Linear(CONFIG.electrostatics_hidden_dim, 1), nn.Sigmoid())
         self.gnn_params = None
         self.batch = None 
+        self.gamma = torch.tensor(0.00542, device=device)  
+        self.offset = torch.tensor(0.0195141, device=device)
+
+    @torch.jit.script
+    def _compute_sasa(self, x, sa_scale):
+        radius = (x[:, 1] + self.offset).unsqueeze(1)
+        return 4.184 * self.gamma * sa_scale.unsqueeze(1) * (radius + 0.14).pow(2) * 100
 
     def forward(self,
                 positions,
@@ -349,9 +356,9 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 batch: Optional[torch.Tensor] = None,
                 atom_features: Optional[torch.Tensor] = None):
 
-        positions = positions.requires_grad_(True)
-        lambda_sterics = lambda_sterics.requires_grad_(True)
-        lambda_electrostatics = lambda_electrostatics.requires_grad_(True)
+        positions.requires_grad_(True)
+        lambda_sterics.requires_grad_(True)
+        lambda_electrostatics.requires_grad_(True)
 
         edge_index = torch_geometric.nn.radius_graph(positions,
                                                      self.gbneck_radius, batch,
@@ -414,18 +421,18 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         Bcn = self.interaction2(edge_index=gnn_edge_index,
                                 x=Bcn,
                                 edge_attributes=gnn_edge_attributes)
-        Bcn = self._silu(Bcn)
-        Bcn = self.interaction3(edge_index=gnn_edge_index,
-                                x=Bcn,
-                                edge_attributes=gnn_edge_attributes)
-        Bcn = self._silu(Bcn)
-        Bcn = self.interaction4(edge_index=gnn_edge_index,
-                                x=Bcn,
-                                edge_attributes=gnn_edge_attributes)
-        Bcn = self._silu(Bcn)
-        Bcn = self.interaction5(edge_index=gnn_edge_index,
-                                x=Bcn,
-                                edge_attributes=gnn_edge_attributes)
+        #Bcn = self._silu(Bcn)
+        #Bcn = self.interaction3(edge_index=gnn_edge_index,
+                                #x=Bcn,
+                                #edge_attributes=gnn_edge_attributes)
+        #Bcn = self._silu(Bcn)
+        #Bcn = self.interaction4(edge_index=gnn_edge_index,
+                                #x=Bcn,
+                                #edge_attributes=gnn_edge_attributes)
+        #Bcn = self._silu(Bcn)
+        #Bcn = self.interaction5(edge_index=gnn_edge_index,
+                                #x=Bcn,
+                                #edge_attributes=gnn_edge_attributes)
         #Bcn = self._silu(Bcn)
         #Bcn = self.interaction6(edge_index=gnn_edge_index,x=Bcn,edge_attributes=gnn_edge_attributes)
         # Separate into polar and non-polar contributions
@@ -433,11 +440,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
         sa_scale = Bcn[:, 1]
 
         # Calculate SA term
-        gamma = 0.00542  # kcal/(mol A^2)
-        offset = 0.0195141
-        radius = (x[:, 1] + offset).unsqueeze(1)
-        sasa = sa_scale.unsqueeze(1) * (radius + 0.14)**2
-        sa_energies = 4.184 * gamma * sasa * 100
+        sa_energies = _compute_sasa(x, sa_scale)
 
         # Scale the GBNeck born radii with plus minus 50%
         Bcn = Bc[:, 0].unsqueeze(1) * (self._fraction +
@@ -473,7 +476,7 @@ class GNN3_all_swish_multiple_peptides_GBNeck_trainable_dif_graphs_corr_with_sep
                 #print((energies.sum(), forces))
                 return (energies.sum(), forces)
 
-        '''
+        #'''
         # Return prediction and Gradients with respect to data
         gradients_sterics = torch.autograd.grad([energies.sum()],
                                                 grad_outputs=grad_output,
