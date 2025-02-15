@@ -61,16 +61,12 @@ def make_all_files(df, master_path):
 
 def slurm_generation(master_path, name):
     slurm = Slurm(
-        partition="l40-gpu",
-        nodes=1,
-        ntasks=1,
-        job_name=f'yank_solv',
-        time=datetime.timedelta(days=0, hours=1, minutes=0, seconds=0),
-        mem="1g",
-        qos="gpu_access",
+        partition = 'general',
+        mem = "16g", 
+        time=datetime.timedelta(days=2, hours=0, minutes=0, seconds=0), 
+        cpus_per_task=1, 
         output=
-        "/work/users/r/d/rdey/ml_implicit_solvent/yank_files/yank_output_slurmm/%j.out",
-        gres="gpu:1")
+        "/work/users/r/d/rdey/ml_implicit_solvent/yank_files/yank_output_slurmm_v2/%j.out")
     file = os.path.join(master_path, name, f"{name}.yaml")
     if (not os.path.exists(file)):
         return 1
@@ -144,6 +140,6 @@ def read_analysis(master_path, output_csv):
 
 
 if __name__ == "__main__":
-    master_path = '/work/users/r/d/rdey/all_yank'
-    csv_path = '/work/users/r/d/rdey/ml_implicit_solvent/yank.csv'
-    read_analysis(master_path, csv_path)
+    master_path = '/work/users/r/d/rdey/yank_gbn2'
+    csv_path = '/work/users/r/d/rdey/ml_implicit_solvent/yank-gbn2.csv'
+    run_analysis_all(master_path)

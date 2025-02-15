@@ -5,9 +5,9 @@ import subprocess
 import pandas as pd
 from openmm import unit
 from sim import SolvationSim
-
+import time
 #from configs import default
-
+import sys
 
 def load_freesolv():
     #return pd.read_csv("data/freesolv.txt", delimiter=";", comment="#", names=["compound", "smiles", "compound_name", "exp_dG", "exp_uncertainty", "calc_dG", "calc_uncertainty", "exp_ref", "cacl_ref", "notes"])
@@ -58,11 +58,26 @@ def analyze_freesolv():
 
 
 if __name__ == "__main__":
-    smi_to_protonated_sdf('CS(=O)(=O)Cl',
-                          '/work/users/r/d/rdey/trials/RealCheck/ligand.sdf')
-    sim = SolvationSim('/work/users/r/d/rdey/trials/RealCheck/ligand.sdf',
-                       '/work/users/r/d/rdey/trials/RealCheck/')
+    init = time.time()
+    master_path = "/work/users/r/d/rdey/Explicit_Test_v2"
+    smile = str(sys.argv[1])
+    expt = float(sys.argv[2])
+    name = str(sys.argv[3])
+    
+    folder_path = os.path.join(master_path, name)
+    lig_file = os.path.join(folder_path, 'ligand.sdf')
+
+    if os.path.exists(folder_path):
+        print(name, " already ran, continuing...")
+        exit()
+
+    os.mkdir(folder_path)
+    smi_to_protonated_sdf(smile, lig_file)
+    sim = SolvationSim(lig_file, folder_path)
     sim.equil_steps = 10000
     sim.run_all()
     delta_F = sim.compute_delta_F()
-    print(delta_F)
+
+    print(f"Total Time: {time.time() - init}")
+    print(f"{name}, {delta_F}, {expt}")
+

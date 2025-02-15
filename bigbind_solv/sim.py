@@ -97,11 +97,8 @@ class SolvationSim:
 
         self.system.set_positions(system.get_positions())
 
-        self.electrostatics_schedule = [0.0, 0.25, 0.5, 0.75, 1.0]
-        self.sterics_schedule = [
-            0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8,
-            0.85, 0.9, 0.95
-        ]
+        self.electrostatics_schedule = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
+        self.sterics_schedule = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
 
         self.equil_steps = 10000
 
@@ -317,11 +314,7 @@ class SolvationSim:
         """ Compute the solvation free energy using MBAR """
         u_nk_vac = self.get_all_vac_u_nk()
         u_nk_solv = self.get_all_solv_u_nk()
-
-        u_nk_vac.to_pickle('/work/users/r/d/rdey/trials/vac_trial.pkl')
-        u_nk_solv.to_pickle(
-            '/work/users/r/d/rdey/trials/SolvationSim_trial.pkl')
-
+        
         T = u_nk_vac.attrs["temperature"] * unit.kelvin
 
         mbar_vac = MBAR()
@@ -334,4 +327,4 @@ class SolvationSim:
                                                                           1)]
         F_solv = F_solv_kt * T * kB
 
-        return F_solv
+        return F_solv.value_in_unit(unit.kilojoule_per_mole) * 0.239006

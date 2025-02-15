@@ -93,12 +93,8 @@ class AI_Solvation_calc_TI:
                                   f"{self.name}_gnn_paramed_model.pt")
 
         if not os.path.exists(cache_path):
-            gnn_params = torch.cat((
-                    torch.tensor(self.compute_atom_features()),
-                    torch.full((len(avg_structure.xyz[0]), 1), lambda_elec),
-                    torch.full((len(avg_structure.xyz[0]), 1), lambda_ster),
-                ),
-                                    dim=-1)
+            gnn_params = torch.tensor(self.compute_atom_features())
+                    
 
             self.model.gnn_params = gnn_params
             self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)
@@ -420,12 +416,12 @@ class AI_Solvation_calc_TI:
 
 if __name__ == "__main__":
 
-    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET5Kmodel.dict'
+    model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET2Kv3model.dict'
 
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/test_check_500'
+    path = '/work/users/r/d/rdey/test_check_TI_v1'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc_TI(model_dict=model_path,
                                smiles=smile,
