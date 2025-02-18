@@ -59,7 +59,7 @@ def analyze_freesolv():
 
 if __name__ == "__main__":
     init = time.time()
-    master_path = "/work/users/r/d/rdey/Explicit_Test_v2"
+    master_path = "/work/users/r/d/rdey/Explicit_Test_v4"
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     os.mkdir(folder_path)
     smi_to_protonated_sdf(smile, lig_file)
     sim = SolvationSim(lig_file, folder_path)
-    sim.equil_steps = 10000
+    sim.equil_steps = 100000
     sim.run_all()
     delta_F = sim.compute_delta_F()
 

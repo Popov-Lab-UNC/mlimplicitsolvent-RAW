@@ -81,7 +81,7 @@ class SolvationSim:
 
         system = get_lr_complex(None,
                                 lig_file,
-                                solvent="tip3p",
+                                solvent="tip5p",
                                 nonbonded_method=app.PME,
                                 include_barostat=True,
                                 **kwargs)
@@ -97,10 +97,10 @@ class SolvationSim:
 
         self.system.set_positions(system.get_positions())
 
-        self.electrostatics_schedule = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
+        self.electrostatics_schedule = [0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
         self.sterics_schedule = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
 
-        self.equil_steps = 10000
+        self.equil_steps = 25000
 
     def minimize(self):
         cache_file = os.path.join(self.out_folder, "minimized.pkl")
