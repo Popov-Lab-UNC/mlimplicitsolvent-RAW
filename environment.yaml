@@ -1,0 +1,25 @@
+name: molsim
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.10
+  - pytorch::pytorch=2.2.*
+  - pytorch::pytorch-cuda=12.4
+  - torch-scatter
+  - pytorch_sparse
+  - pytorch_cluster
+  - pytorch_geometric
+  - openmm=8.1.*
+  - openmmtools
+  - openff-toolkit
+  - rdkit
+  - numpy
+  - pandas
+  - mdtraj
+  - tqdm
+  - alchemlyb
+  - pip
+  - pip:
+    - openmmtorch
