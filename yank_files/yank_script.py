@@ -142,4 +142,4 @@ def read_analysis(master_path, output_csv):
 if __name__ == "__main__":
     master_path = '/work/users/r/d/rdey/yank_gbn2'
     csv_path = '/work/users/r/d/rdey/ml_implicit_solvent/yank-gbn2.csv'
-    run_analysis_all(master_path)
+    read_analysis(master_path, csv_path)

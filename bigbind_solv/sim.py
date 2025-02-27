@@ -81,7 +81,7 @@ class SolvationSim:
 
         system = get_lr_complex(None,
                                 lig_file,
-                                solvent="tip5p",
+                                solvent="tip3p",
                                 nonbonded_method=app.PME,
                                 include_barostat=True,
                                 **kwargs)

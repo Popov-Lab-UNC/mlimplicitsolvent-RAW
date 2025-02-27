@@ -15,13 +15,12 @@ def load_freesolv():
         '/work/users/r/d/rdey/ml_implicit_solvent/freesolv/SAMPL.csv')
 
 
-def smi_to_protonated_sdf(smi, out_file):
-    """ Uses openbabl to add a conformer + protonate the molecule, saving to out_file """
-    cmd = f"obabel -:'{smi.strip()}' -O {out_file} --gen3d --pH 7"
+def smi_to_protonated_sdf(smiles, output_path):
+    cmd = f'obabel "-:{smiles}" -O "{output_path}" --gen3d --pH 7'
     subprocess.run(cmd, check=True, shell=True, timeout=60)
 
 
-equil_steps = 10000
+equil_steps = 25000
 
 
 def analyze_freesolv():
@@ -59,7 +58,7 @@ def analyze_freesolv():
 
 if __name__ == "__main__":
     init = time.time()
-    master_path = "/work/users/r/d/rdey/Explicit_Test_v4"
+    master_path = "/work/users/r/d/rdey/Explicit_Test_v8"
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
@@ -67,14 +66,11 @@ if __name__ == "__main__":
     folder_path = os.path.join(master_path, name)
     lig_file = os.path.join(folder_path, 'ligand.sdf')
 
-    if os.path.exists(folder_path):
-        print(name, " already ran, continuing...")
-        exit()
-
-    os.mkdir(folder_path)
-    smi_to_protonated_sdf(smile, lig_file)
+    os.makedirs(folder_path, exist_ok=True)
+    if(not os.path.exists(lig_file)):
+        smi_to_protonated_sdf(smile, lig_file)
     sim = SolvationSim(lig_file, folder_path)
-    sim.equil_steps = 100000
+    sim.equil_steps = 1500000
     sim.run_all()
     delta_F = sim.compute_delta_F()
 

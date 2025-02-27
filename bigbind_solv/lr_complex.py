@@ -457,10 +457,10 @@ def get_lr_complex(prot_pdb,
             lig_indices.append(atom.index)
         lig_indices = np.array(lig_indices)
 
-    if solvent == "tip5p":
+    if solvent == "tip3p":
         modeller.addSolvent(
             forcefield,
-            model='tip5p',
+            model='tip3p',
             padding=box_padding,
             positiveIon='Na+',
             negativeIon='Cl-',
