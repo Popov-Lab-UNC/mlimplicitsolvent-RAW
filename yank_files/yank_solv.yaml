@@ -2,11 +2,9 @@
 options:
   minimize: yes
   verbose: yes
-  output_dir: implicit
-  default_number_of_iterations: 1000
   temperature: 300*kelvin
-  pressure: null
-  platform: CPU
+  pressure: 1*atmosphere
+
 
 molecules:
   name:
@@ -16,10 +14,12 @@ molecules:
 
 solvents:
   water:
-    nonbonded_method: NoCutoff
-    implicit_solvent: GBn2
-    solute_dielectric: 1.0
-    solvent_dielectric: 78.5
+    nonbonded_method: PME
+    nonbonded_cutoff: 9*angstroms
+    clearance: 16*angstroms
+    solvent_model: tip4pew
+    leap:
+      parameters: [leaprc.water.tip4pew]
   vacuum:
     nonbonded_method: NoCutoff
 
@@ -29,19 +29,18 @@ systems:
     solvent1: water
     solvent2: vacuum
     leap:
-      parameters: [leaprc.gaff]
+      parameters: leaprc.gaff
 
 protocols:
   hydration-protocol:
     solvent1:
-      alchemical_path:
-        lambda_electrostatics: [1.00, 0.50, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
-        lambda_sterics:        [1.00, 1.00, 1.00, 0.85, 0.70, 0.50, 0.20, 0.00]
+      alchemical_path: 
+        lambda_electrostatics: [1.00, 1.00, 1.00, 1.00, 1.00, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
+        lambda_sterics:        [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.00]
     solvent2:
       alchemical_path:
-        lambda_electrostatics: [1.00, 0.50, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
-        lambda_sterics:        [1.00, 1.00, 1.00, 0.85, 0.70, 0.50, 0.20, 0.00]
-
+        lambda_electrostatics: [1.00, 1.00, 1.00, 1.00, 1.00, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
+        lambda_sterics:        [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.00]
 experiments:
   system: hydration-system
   protocol: hydration-protocol

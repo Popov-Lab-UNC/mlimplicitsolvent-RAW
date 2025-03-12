@@ -391,7 +391,12 @@ class AI_Solvation_calc:
             1.0, 1.0)]  #mbar_vac.delta_f_[0][1] -
         F_solv = F_solv_kt * self._T * kB
 
-        return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006
+        F_d_solv_kt = mbar_solv.d_delta_f_[(0.0, 0.0)][(
+            1.0, 1.0)]
+        
+        F_solv_error = F_d_solv_kt * self._T * kB
+
+        return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(kilojoule_per_mole) * 0.239006
 
 
 class runSims:
@@ -413,7 +418,7 @@ class runSims:
                                     path=self.path,
                                     name="Initial")
             obj.run_all_sims(overwrite=False)
-            res = obj.compute_delta_F()
+            res, error = obj.compute_delta_F()
             print(f"Calculated:{res}, Expected: {expt}")
             self.collect.append(res)
             del obj
@@ -436,6 +441,7 @@ if __name__ == "__main__":
                             path=path,
                             name=name)
     obj.run_all_sims(overwrite=False)
-    res = obj.compute_delta_F()
+    res, error = obj.compute_delta_F()
+    print(f"Error: {error}")
     print(f"Total Time: {time.time() - init}")
     print(f"{name}, {res}, {expt}")
