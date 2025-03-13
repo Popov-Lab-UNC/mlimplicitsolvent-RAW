@@ -4,4 +4,5 @@ terrace
 numba
 mdtraj
 torchmetrics
+alchemlyb
 
