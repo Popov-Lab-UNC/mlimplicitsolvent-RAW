@@ -1,6 +1,7 @@
 from copy import deepcopy
 import os
 import subprocess
+from traceback import print_exc
 import pandas as pd
 from config import CONFIG
 from openmm import unit
@@ -21,33 +22,37 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
         f.write("iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
-            out_folder = os.path.join(
-                CONFIG.cache_dir, f"freesolv_{solvent}_{equil_steps}", str(i)
-            )
-            os.makedirs(out_folder, exist_ok=True)
+            try:
+                out_folder = os.path.join(
+                    CONFIG.cache_dir, f"freesolv_{solvent}_{equil_steps}", str(i)
+                )
+                os.makedirs(out_folder, exist_ok=True)
 
-            print(f"Processing {row.iupac}")
-            print(f"Saving results to {out_folder}")
+                print(f"Processing {row.iupac}")
+                print(f"Saving results to {out_folder}")
 
-            lig_file = os.path.join(out_folder, "ligand.sdf")
-            if not os.path.exists(lig_file):
-                smi_to_protonated_sdf(row.smiles, lig_file)
+                lig_file = os.path.join(out_folder, "ligand.sdf")
+                if not os.path.exists(lig_file):
+                    smi_to_protonated_sdf(row.smiles, lig_file)
 
-            sim = SolvationSim(lig_file, out_folder, solvent=solvent)
-            sim.equil_steps = equil_steps
-            sim.run_all()
-            delta_F = sim.compute_delta_F()
-            elapsed_time = sim.elapsed_time
+                sim = SolvationSim(lig_file, out_folder, solvent=solvent)
+                sim.equil_steps = equil_steps
+                sim.run_all()
+                delta_F = sim.compute_delta_F()
+                elapsed_time = sim.elapsed_time
 
-            print(
-                f"Computed delta_F: {delta_F.value_in_unit(unit.kilocalories_per_mole)} kcal/mol, took {elapsed_time} seconds"
-            )
-            print(row)
+                print(
+                    f"Computed delta_F: {delta_F} kcal/mol, took {elapsed_time} seconds"
+                )
+                print(row)
 
-            f.write(
-                f"{row.iupac},{delta_F.value_in_unit(unit.kilocalories_per_mole)},{row.exp_dG},{row.calc_dG},{elapsed_time}\n"
-            )
-            f.flush()
+                f.write(
+                    f"{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n"
+                )
+                f.flush()
+            except:
+                print(f"Error processing {row.iupac}")
+                print_exc()
 
 def split_freesolv():
     df_og = pd.read_csv("freesolv/SAMPL.csv")
@@ -70,5 +75,5 @@ def split_freesolv():
 if __name__ == "__main__":
     solvent = str(sys.argv[1])
     equil_steps = int(sys.argv[2])
-    freesolv_split = int(sys.argv[3])
+    freesolv_split = sys.argv[3] if len(sys.argv) > 3 else ""
     run_all_sims(solvent, equil_steps, freesolv_split)
