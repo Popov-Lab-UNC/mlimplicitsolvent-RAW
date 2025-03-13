@@ -17,16 +17,20 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
 
     os.makedirs("output", exist_ok=True)
 
-    df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv")
+    print(f"freesolv/SAMPL{freesolv_split}.csv")
+    df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv", index_col=0)
+    df["idx"] = df.index
+    print(df.index)
+
     with open(
         f"output/freesolv_results_{solvent}_{equil_steps}_{freesolv_split}.csv", "w"
     ) as f:
-        f.write("iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
+        f.write("freessolv_index,iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
             try:
                 out_folder = os.path.join(
-                    CONFIG.cache_dir, f"freesolv_{solvent}_{equil_steps}", str(i)
+                    CONFIG.cache_dir, f"freesolv_{solvent}_{equil_steps}", str(row.idx)
                 )
                 os.makedirs(out_folder, exist_ok=True)
 
@@ -49,7 +53,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 )
                 print(row)
 
-                f.write(f"{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
+                f.write(f"{row.idx},{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
                 f.flush()
             except KeyboardInterrupt:
                 raise
