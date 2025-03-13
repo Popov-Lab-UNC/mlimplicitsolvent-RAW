@@ -3,16 +3,16 @@
 import os
 import subprocess
 import pandas as pd
+from config import CONFIG
 from openmm import unit
-from sim import SolvationSim
+from bigbind_solv.sim import SolvationSim
 import time
 #from configs import default
 import sys
 
 def load_freesolv():
     #return pd.read_csv("data/freesolv.txt", delimiter=";", comment="#", names=["compound", "smiles", "compound_name", "exp_dG", "exp_uncertainty", "calc_dG", "calc_uncertainty", "exp_ref", "cacl_ref", "notes"])
-    return pd.read_csv(
-        '/work/users/r/d/rdey/ml_implicit_solvent/freesolv/SAMPL.csv')
+    return pd.read_csv('freesolv/SAMPL.csv')
 
 
 def smi_to_protonated_sdf(smiles, output_path):

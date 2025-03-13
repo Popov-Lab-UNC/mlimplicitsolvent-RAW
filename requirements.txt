@@ -5,6 +5,3 @@ numba
 mdtraj
 torchmetrics
 
-
-wandb omegaconf terrace numba mdtraj torchmetrics
-

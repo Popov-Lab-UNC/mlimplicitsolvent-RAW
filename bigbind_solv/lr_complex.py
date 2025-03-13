@@ -155,13 +155,18 @@ class LRComplex:
         # internal references to the atoms smh)
         return LRComplex(system, self.topology, *tup)
 
-    def set_positions(self, positions):
-        """ Set the positions of the system """
+    def set_positions(self, positions, box_vectors=None):
+        """ Set the positions of the system. If box_vectors is provided, set them as well """
         # smh so OpenMM assumes the units are nm -- this is bad.
         # We raise errors if you don't provide units
         if not unit.is_quantity(positions):
             raise ValueError("Positions must have a unit attached")
         self.simulation.context.setPositions(positions)
+        if box_vectors is not None:
+            a = mm.Vec3(*box_vectors[0])
+            b = mm.Vec3(*box_vectors[1])
+            c = mm.Vec3(*box_vectors[2])
+            self.simulation.context.setPeriodicBoxVectors(a, b, c)
 
     def get_positions(self):
         """ Get the positions of the system """
@@ -376,10 +381,10 @@ def get_lr_complex(prot_pdb,
                    solvent="obc2",
                    constraints=app.HBonds,
                    nonbonded_method=app.NoCutoff,
-                   nonbonded_cutoff=2.0 * unit.nanometer,
+                   nonbonded_cutoff=0.9 * unit.nanometer,
                    include_barostat=False,
                    box_vectors=None,
-                   box_padding=1.0 * unit.nanometer,
+                   box_padding=1.6 * unit.nanometer,
                    P=1.0 * unit.atmosphere,
                    T=300 * unit.kelvin,
                    cache_dir=None,
