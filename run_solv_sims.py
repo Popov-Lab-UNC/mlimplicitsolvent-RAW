@@ -18,7 +18,9 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
     os.makedirs("output", exist_ok=True)
 
     df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv")
-    with open(f"output/freesolv_results_{solvent}_{equil_steps}_{freesolv_split}.csv", "w") as f:
+    with open(
+        f"output/freesolv_results_{solvent}_{equil_steps}_{freesolv_split}.csv", "w"
+    ) as f:
         f.write("iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
@@ -29,7 +31,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 os.makedirs(out_folder, exist_ok=True)
 
                 print(f"Processing {row.iupac}")
-                print(f"Saving results to {out_folder}")
+                print(f"Saving results to {out_folder}", flush=True)
 
                 lig_file = os.path.join(out_folder, "ligand.sdf")
                 if not os.path.exists(lig_file):
@@ -42,17 +44,19 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 elapsed_time = sim.elapsed_time
 
                 print(
-                    f"Computed delta_F: {delta_F} kcal/mol, took {elapsed_time} seconds"
+                    f"Computed delta_F: {delta_F} kcal/mol, took {elapsed_time} seconds",
+                    flush=True,
                 )
                 print(row)
 
-                f.write(
-                    f"{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n"
-                )
+                f.write(f"{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
                 f.flush()
+            except KeyboardInterrupt:
+                raise
             except:
-                print(f"Error processing {row.iupac}")
+                print(f"Error processing {row.iupac}", flush=True)
                 print_exc()
+
 
 def split_freesolv():
     df_og = pd.read_csv("freesolv/SAMPL.csv")
@@ -71,6 +75,7 @@ def split_freesolv():
     df4.to_csv("freesolv/SAMPL3.csv", index=True)
 
     assert len(df_og) == len(df1) + len(df2) + len(df3) + len(df4)
+
 
 if __name__ == "__main__":
     solvent = str(sys.argv[1])
