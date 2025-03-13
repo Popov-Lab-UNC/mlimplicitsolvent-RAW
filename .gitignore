@@ -16,7 +16,6 @@ training_slurmm_ai_sim.py
 trained_models
 energy.txt
 Hydration_Slurmm
-freesolv
 yank_files/yank_output_slurmm
 yank_files/yank_output_slurmm_v2
 yank_files/yank_output_slurmm_v3
