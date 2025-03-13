@@ -18,7 +18,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
     os.makedirs("output", exist_ok=True)
 
     df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv")
-    with open(f"output/freesolv_results_{solvent}_{equil_steps}.csv", "w") as f:
+    with open(f"output/freesolv_results_{solvent}_{equil_steps}_{freesolv_split}.csv", "w") as f:
         f.write("iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
