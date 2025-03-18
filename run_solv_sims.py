@@ -28,6 +28,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
         f.write("freessolv_index,iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
+            print(row)
             try:
                 out_folder = os.path.join(
                     CONFIG.cache_dir, f"freesolv_{solvent}_{equil_steps}", str(row.idx)
