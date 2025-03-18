@@ -53,7 +53,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 )
                 print(row)
 
-                f.write(f"{row.idx},{row.iupac},{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
+                f.write(f"{row.idx},\"{row.iupac}\",{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
                 f.flush()
             except KeyboardInterrupt:
                 raise
