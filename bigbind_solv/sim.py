@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 import mdtraj as md
 import openmm as mm
-from openmm import app
+from openmm import app, NonbondedForce
 from openmm import unit
 from openmmtools.constants import kB
 import alchemlyb
@@ -14,7 +14,7 @@ from alchemlyb.preprocessing.subsampling import decorrelate_u_nk
 from lr_complex import get_lr_complex
 from fep import apply_fep, set_fep_lambdas
 import pickle as pkl
-
+from openmm.app.internal.customgbforces import GBSAGBn2Force
 
 def get_lig_and_water_indices(system):
     """ Returns lists of sets of the ligand and water atom indices.
@@ -81,10 +81,39 @@ class SolvationSim:
 
         system = get_lr_complex(None,
                                 lig_file,
-                                solvent="tip3p",
-                                nonbonded_method=app.PME,
-                                include_barostat=True,
+                                solvent="none",
+                                nonbonded_method=app.NoCutoff,
                                 **kwargs)
+        
+        gbsa_force = GBSAGBn2Force(cutoff=None,
+                                    SA="ACE",
+                                    soluteDielectric=1,
+                                    solventDielectric=78.5)
+        
+        self.gbsa_params = np.array(gbsa_force.getStandardParameters(system.topology))
+        nonbonded = [
+            f for f in system.system.getForces()
+            if isinstance(f, NonbondedForce)
+            ][0]
+        
+        self.charges = np.array([
+            tuple(nonbonded.getParticleParameters(idx))[0].value_in_unit(
+                unit.elementary_charge)
+            for idx in range(system.system.getNumParticles())
+        ])
+
+        intial_sterics = np.repeat(1.0, len(self.charges))
+
+        gbsa_params = np.concatenate(
+                                    (np.reshape(self.charges, (-1, 1)), self.gbsa_params, np.reshape(intial_sterics, (-1, 1))),
+                                    axis=1
+                                    )
+        
+        gbsa_force.addParticles(gbsa_params)
+        gbsa_force.finalize()
+        system.system.addForce(gbsa_force)
+
+
         system_vac = get_lr_complex(None, lig_file, solvent="none", **kwargs)
         system.save(os.path.join(out_folder, "system"))
         system_vac.save(os.path.join(out_folder, "system_vac"))
@@ -93,12 +122,26 @@ class SolvationSim:
         system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
 
         self.system = make_alchemical_system(system)
+
+        
+
+
         self.system_vac = make_alchemical_system(system_vac)
 
         self.system.set_positions(system.get_positions())
 
-        self.electrostatics_schedule = [0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
-        self.sterics_schedule = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00]
+        self.electrostatics_schedule = [
+            0.00,
+            0.50,
+            1.00,
+        ]
+        self.sterics_schedule = [
+            0.00,
+            0.25,
+            0.50,
+            0.75,
+            1.00,
+        ]
 
         self.equil_steps = 25000
 
@@ -143,6 +186,34 @@ class SolvationSim:
             simulation = self.system_vac.simulation
         else:
             simulation = self.system.simulation
+            
+            new_charges = self.charges * lambda_electrostatics
+            sterics = np.repeat(lambda_sterics, len(self.charges))
+
+            gbsa_params = np.concatenate(
+                                    (np.reshape(new_charges, (-1, 1)), self.gbsa_params, np.reshape(sterics, (-1, 1))),
+                                    axis=1
+                                    )
+
+            gbsa_force = [
+            f for f in simulation.system.getForces()
+            if isinstance(f, mm.CustomGBForce)
+            ][0]
+            print(gbsa_force.getParticleParameters(0))
+
+            for idx, params in enumerate(gbsa_params):
+                gbsa_force.setParticleParameters(idx, params.tolist())
+            gbsa_force.updateParametersInContext(simulation.context)
+            
+
+            gbsa_force = [
+            f for f in simulation.system.getForces()
+            if isinstance(f, mm.CustomGBForce)
+            ][0]
+
+            print(gbsa_force.getParticleParameters(0))
+        
+        
         set_fep_lambdas(simulation.context, lambda_sterics,
                         lambda_electrostatics)
         simulation.reporters.clear()
@@ -250,10 +321,35 @@ class SolvationSim:
             u = np.zeros(len(traj.time))
             set_fep_lambdas(self.system.simulation.context, energy_lambda_ster,
                             energy_lambda_elec)
+            gbsa_force = [
+            f for f in self.system.system.getForces()
+            if isinstance(f, mm.CustomGBForce)
+            ][0]
+
+
+            
+
+
+            
             for i, coords in enumerate(traj.xyz):
+                
+
                 self.system.set_positions(coords * unit.nanometer)
+
+                new_charges = self.charges * energy_lambda_elec
+
+                sterics = np.repeat(energy_lambda_ster, len(self.charges))
+
+                gbsa_params = np.concatenate((np.reshape(new_charges, (-1, 1)), self.gbsa_params, np.reshape(sterics, (-1, 1))),
+                                    axis=1)
+
+                for idx, params in enumerate(gbsa_params):
+                    gbsa_force.setParticleParameters(idx, params.tolist())
+                    gbsa_force.updateParametersInContext(self.system.simulation.context)
+                    
                 U = self.system.simulation.context.getState(
                     getEnergy=True).getPotentialEnergy()
+
                 # reduced energy (divided by kT)
                 u[i] = U / (kB * T)
             df[(energy_lambda_ster, energy_lambda_elec)] = u
@@ -323,8 +419,14 @@ class SolvationSim:
         mbar_solv = MBAR()
         mbar_solv.fit(u_nk_solv)
 
-        F_solv_kt = mbar_vac.delta_f_[0][1] - mbar_solv.delta_f_[(0, 0)][(1,
-                                                                          1)]
+        from alchemlyb.visualisation import plot_mbar_overlap_matrix
+        ax = plot_mbar_overlap_matrix(mbar_solv.overlap_matrix)
+        ax.figure.savefig("/work/users/r/d/rdey/ml_implicit_solvent/mbar_overlap_matrix.png", dpi=300)
+        
+        F_solv_kt = -mbar_solv.delta_f_[(0, 0)][(1,1)] + mbar_vac.delta_f_[0][1]
+        F_solv_dkt =  -mbar_solv.d_delta_f_[(0, 0)][(1,1)] + mbar_vac.d_delta_f_[0][1]
         F_solv = F_solv_kt * T * kB
+        F_solv_error = F_solv_dkt * T * kB
 
-        return F_solv.value_in_unit(unit.kilojoule_per_mole) * 0.239006
+        return F_solv.value_in_unit(unit.kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(unit.kilojoule_per_mole) * 0.239006
+        

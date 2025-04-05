@@ -37,10 +37,12 @@ class AI_Solvation_calc:
         return system_F, molecule, pdb.topology
 
     def __init__(self, model_dict, name, smiles, path):
-        self.lambda_electrostatics = [0.0, 1.0]
-        self.lambda_sterics = [0.0, 1.0]
-        self.n_steps = 5000
-        self.report_interval = 750
+        self.lambda_electrostatics = [0.0, 0.5, 1.0]
+        self.lambda_sterics = [
+            0.0, 0.5, 1.0
+        ]
+        self.n_steps = 250000
+        self.report_interval = 1000
         self._T = 300 * kelvin
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
@@ -48,10 +50,6 @@ class AI_Solvation_calc:
             self.platform = Platform.getPlatformByName('CPU')
         else:
             self.platform = Platform.getPlatformByName('CUDA')
-            
-        self.properties = None #{'Precision': 'mixed', 'DeviceIndex': 0}
-
-        
 
         self.model_dict = torch.load(model_dict, map_location=self.device)
         tot_unique = [
@@ -84,7 +82,7 @@ class AI_Solvation_calc:
         if not os.path.exists(cache_path):
             gnn_params = torch.tensor(self.compute_atom_features())
 
-            self.model.gnn_params = gnn_params.to(self.device)
+            self.model.gnn_params = gnn_params
             self.model.batch = torch.zeros(size=(len(gnn_params), )).to(torch.long)
             torch.jit.script(self.model).save(cache_path)
 
@@ -202,8 +200,7 @@ class AI_Solvation_calc:
         simulation = Simulation(self.topology,
                                 self.system,
                                 integrator,
-                                platform=self.platform, 
-                                platformProperties = self.properties)
+                                platform=self.platform)
         simulation.context.setParameter("lambda_sterics", lambda_sterics)
         simulation.context.setParameter("lambda_electrostatics",
                                         lambda_electrostatics)
@@ -229,17 +226,18 @@ class AI_Solvation_calc:
         for idx, coords in enumerate(traj.xyz):
 
             positions = torch.from_numpy(coords).to(self.device)
-            batch = torch.zeros(size=(len(positions), )).to(torch.long)
+            batch = torch.zeros(size=(len(positions), )).to(torch.long) 
 
             factor = self.model(positions, e_lambda_ster, e_lambda_elec,
-                                torch.tensor(1.0).to(self.device), batch)
-            
+                                torch.tensor(1.0).to(self.device), True, batch, None)
+
             self.curr_simulation_vac.context.setPositions(coords)
             self.curr_simulation_vac.minimizeEnergy()
 
             U = self.curr_simulation_vac.context.getState(
                 getEnergy=True).getPotentialEnergy()
-            val = (U + (factor[0].item() * kilojoule_per_mole)) / (kB * self._T)
+            val = (U +
+                   (factor[0].item() * kilojoule_per_mole)) / (kB * self._T)
             u[idx] = float(val)
         return u
 
@@ -306,6 +304,47 @@ class AI_Solvation_calc:
 
         return solv_u_nk_df
 
+    #Note to self: As the ML does not remove the intramolecular forces, readding the vaccum forces to MBAR is irrelevant. This function
+    # is irrelevant.
+    def vac_u_nk(self):
+        cache_path = os.path.join(self.vac_path, f"{self.name}_u_nk.pkl")
+        if os.path.exists(cache_path):
+            return pd.read_pickle(cache_path)
+        vac_u_nk_df = []
+
+        for lambda_elec in self.lambda_electrostatics:
+            dcd_file = os.path.join(self.vac_path,
+                                    f"{lambda_elec}_{self.name}.dcd")
+            pdb_file = os.path.join(self.solv_path, f"{self.name}.pdb")
+            traj = md.load(dcd_file, top=pdb_file)
+
+            df = pd.DataFrame({
+                "time": traj.time,
+                "fep_lambda": [lambda_elec] * len(traj.time)
+            })
+
+            df = df.set_index(["time", "fep_lambda"])
+
+            for e_lambda_elec in self.lambda_electrostatics:
+                u = self.calculate_energy_for_traj(traj, 0.0, e_lambda_elec)
+                df[e_lambda_elec] = u
+
+            df = self.u_nk_processing_df(df)
+
+            vac_u_nk_df.append(df)
+
+        vac_u_nk_df = alchemlyb.concat(vac_u_nk_df)
+
+        new_index = []
+        for i, index in enumerate(vac_u_nk_df.index):
+            new_index.append((i, *index[1:]))
+        vac_u_nk_df.index = pd.MultiIndex.from_tuples(
+            new_index, names=vac_u_nk_df.index.names)
+
+        vac_u_nk_df.to_pickle(cache_path)
+
+        return vac_u_nk_df
+
     def run_all_sims(self, overwrite=False):
         print("-- Starting AI Simulation Hydration Calculations --")
 
@@ -351,9 +390,6 @@ class AI_Solvation_calc:
         print(
             f" -- Finished Setup in {setup_time - start} seconds; Starting Simulation -- "
         )
-
-        #self.AI_simulation(1.0, 1.0, vaccum=0.0, out=f"(1.0-1.0)_{self.name}")
-
         print(" -- Removing Electrostatics -- ")
         for lambda_elec in reversed(self.lambda_electrostatics):
             self.AI_simulation(1.0,
@@ -369,20 +405,24 @@ class AI_Solvation_calc:
                                0.0,
                                vaccum=0.0,
                                out=f"({lambda_ster}-0.0)_{self.name}")
+        solv_ster_time = time.time()
         '''
         print(f" -- Time taken: {solv_ster_time - solv_elec_time} - Re-adding electrostatics in Vaccum -- ")
         for lambda_elec in self.lambda_electrostatics:
             self.AI_simulation(0.0, lambda_elec, vaccum = 1.0, out = f"{lambda_elec}_{self.name}")
         '''
         print(
-            f" -- Finished Simulation -- Sterics Time: {time.time() - solv_elec_time}; Total Time: {time.time() - start} -- "
+            f" -- Finished Simulation -- Vaccum Time: {time.time() - solv_elec_time}; Total Time: {time.time() - start} -- "
         )
 
     def compute_delta_F(self):
 
         print(" -- Starting Calculation of Hydration Energy -- ")
-        self.model.gnn_params = self.compute_atom_features()  #idk why I am forced to do this but it helps for sum reason?
+        self.model.gnn_params = torch.tensor(self.compute_atom_features())  #idk why I am forced to do this but it helps for sum reason?
         solv = self.solv_u_nk()
+        #vac = self.vac_u_nk()
+        #mbar_vac = MBAR()
+        #mbar_vac.fit(vac)
 
         mbar_solv = MBAR()
         mbar_solv.fit(solv)
@@ -391,12 +431,7 @@ class AI_Solvation_calc:
             1.0, 1.0)]  #mbar_vac.delta_f_[0][1] -
         F_solv = F_solv_kt * self._T * kB
 
-        F_d_solv_kt = mbar_solv.d_delta_f_[(0.0, 0.0)][(
-            1.0, 1.0)]
-        
-        F_solv_error = F_d_solv_kt * self._T * kB
-
-        return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(kilojoule_per_mole) * 0.239006
+        return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006
 
 
 class runSims:
@@ -418,7 +453,7 @@ class runSims:
                                     path=self.path,
                                     name="Initial")
             obj.run_all_sims(overwrite=False)
-            res, error = obj.compute_delta_F()
+            res = obj.compute_delta_F()
             print(f"Calculated:{res}, Expected: {expt}")
             self.collect.append(res)
             del obj
@@ -430,18 +465,16 @@ import sys
 if __name__ == "__main__":
 
     model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET2Kv3model.dict'
-    init = time.time()
+
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/speed_check'
+    path = '/work/users/r/d/rdey/LSNN_250k'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path,
                             smiles=smile,
                             path=path,
                             name=name)
     obj.run_all_sims(overwrite=False)
-    res, error = obj.compute_delta_F()
-    print(f"Error: {error}")
-    print(f"Total Time: {time.time() - init}")
+    res = obj.compute_delta_F()
     print(f"{name}, {res}, {expt}")

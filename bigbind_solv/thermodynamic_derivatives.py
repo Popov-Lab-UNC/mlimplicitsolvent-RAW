@@ -10,6 +10,29 @@ import os
 
 
 class ThermodynamicDerivativesReporter(SolvDatasetReporter):
+
+
+
+    def get_parameter_derivative(context, param_name, dp=1e-4):
+    """ 
+    Uses finite difference to calculate the derivative of the 
+    potential energy with respect to a parameter.
+    """
+    parameter = context.getParameter(param_name)
+
+    if (parameter == 1.0):
+        dp = -dp
+
+    initial_energy = context.getState(getEnergy=True).getPotentialEnergy()
+
+    context.setParameter(param_name, parameter + dp)
+    final_energy = context.getState(getEnergy=True).getPotentialEnergy()
+
+    context.setParameter(param_name, parameter)
+
+    return (final_energy - initial_energy) / dp
+
+
     """ 
     Subclass of SolvDatasetReporter that allows custom dp for finite difference in derivatives.
     """
@@ -30,8 +53,8 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
 
         print("Available derivative keys:", list(derivatives.values()))
 
-        sterics_derivative = derivatives['lambda_sterics']
-        electrostatics_derivative = derivatives['lambda_electrostatics']
+        sterics_derivative = get_parameter_derivatives(context, "lambda_sterics")
+        electrostatics_derivative = get_parameter_derivatives(context, 'lambda_electrostatics')
 
         print("sterics_derivative:", sterics_derivative)
         print("electrostatics_derivative:", electrostatics_derivative)
@@ -46,17 +69,8 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
 
         print("vac_forces:", vac_forces)
 
-        vac_electrostatics_derivative = state_vac.getEnergyParameterDerivatives(
-        )['lambda_electrostatics']
-
-        print("vac_electrostatics_derivative:", vac_electrostatics_derivative)
-
-        lambda_sterics = context.getParameter('lambda_sterics')
-        lambda_electrostatics = context.getParameter('lambda_electrostatics')
-
-        print("lambda_sterics:", lambda_sterics)
-        print("lambda_electrostatics:", lambda_electrostatics)
-
+        vac_electrostatics_derivative = get_parameter_derivatives(self.system_vac_context, "lambda_electrostatics")
+        
         self.file["positions"].resize(
             (self.file["positions"].shape[0] + 1, len(self.mol_indices), 3))
         self.file["positions"][-1] = positions[self.mol_indices]
@@ -88,7 +102,33 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
 
 
 #will do later lol
-def create_system():
+def create_system(out_folder, lig_file, smile, solvent):
+    kwargs = {
+        "nonbonded_cutoff": 0.9 * unit.nanometer,
+        # "nonbonded_cutoff": 1.5*unit.nanometer,
+        "constraints": app.HBonds,
+        "box_padding": 1.6 * unit.nanometer,
+        # "box_padding": 2.0*unit.nanometer,
+        "lig_ff": "gaff",
+        "cache_dir": out_folder,
+    }
+    lig_file = os.path.join(out_folder, "ligand.sdf")
+    if not os.path.exists(lig_file):
+        smi_to_protonated_sdf(smile, lig_file)
+
+    system = get_lr_complex(None,
+                            lig_file,
+                            solvent=solvent,
+                            nonbonded_method=app.PME,
+                            include_barostat=True if solvent = "tip3p" else False,
+                            **kwargs)
+    system_vac = get_lr_complex(None, lig_file, solvent="none", **kwargs)
+
+    system.save(os.path.join(out_folder, "system"))
+    system_vac.save(os.path.join(out_folder, "system_vac"))
+
+    system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
+    system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
     return
 
 
@@ -108,7 +148,7 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
     data_path = os.path.join(path, sim_path, 'sim.h5')
 
     if (not os.path.exists(path)):
-        create_system()
+        create_system(smile, name, )
     else:
         try:
             system_path = os.path.join(path, "system")
