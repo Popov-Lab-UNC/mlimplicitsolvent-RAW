@@ -18,7 +18,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
     os.makedirs("output", exist_ok=True)
 
     print(f"freesolv/SAMPL{freesolv_split}.csv")
-    df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv")
+    df = pd.read_csv(f"freesolv/SAMPL{freesolv_split}.csv", index_col=0 if freesolv_split != "" else None)
     df["idx"] = df.index
     print(df.index)
 
