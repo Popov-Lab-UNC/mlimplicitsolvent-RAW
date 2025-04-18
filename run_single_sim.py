@@ -20,9 +20,13 @@ if __name__ == "__main__":
     sim = SolvationSim(lig_file, out_folder, solvent=solvent)
     sim.equil_steps = equil_steps
     sim.run_all()
-    delta_F = sim.compute_delta_F()
+    solv_G = sim.compute_delta_F()
     with open(out_folder + "/results.json", "w") as f:
         json.dump({
-            "delta_F": float(delta_F),
+            "solv_G": float(solv_G),
+            "solv_dG_solv": float(sim.solv_dF),
+            "solv_ddG_solv": float(sim.solv_ddG),
+            "solv_dG_vac": float(sim.solv_dG_vac),
+            "solv_ddG_vac": float(sim.solv_ddG_vac),
             "elapsed_time": sim.elapsed_time,
         }, f)

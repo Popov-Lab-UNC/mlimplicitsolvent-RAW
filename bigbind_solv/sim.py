@@ -401,4 +401,9 @@ class SolvationSim:
         F_solv_kt = mbar_vac.delta_f_[0][1] - mbar_solv.delta_f_[(0, 0)][(1, 1)]
         F_solv = F_solv_kt * T * kB
 
+        self.vac_dF = mbar_vac.delta_f_[0][1].value_in_unit(unit.kilocalories_per_mole)
+        self.vac_ddF = mbar_vac.d_delta_f_[0][1].value_in_unit(unit.kilocalories_per_mole)
+        self.solv_dF = mbar_solv.delta_f_[(0, 0)][(1, 1)].value_in_unit(unit.kilocalories_per_mole)
+        self.solv_ddF = mbar_solv.d_delta_f_[(0, 0)][(1, 1)].value_in_unit(unit.kilocalories_per_mole)
+
         return F_solv.value_in_unit(unit.kilocalories_per_mole)
