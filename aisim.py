@@ -212,7 +212,7 @@ class AI_Solvation_calc:
             nbforces.updateParametersInContext(simulation.context)
 
         simulation.minimizeEnergy()
-        simulation.reporters.append(DCDReporter(path, 100))
+        simulation.reporters.append(DCDReporter(path, report_intervals))
 
         simulation.step(self.n_steps)
         with open(com, 'w'):

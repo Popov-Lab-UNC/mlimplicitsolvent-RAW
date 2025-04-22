@@ -139,20 +139,24 @@ def freeze_atoms(system, lig_indicies):
 
 
 def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
-           stepSize):
+           stepSize, solvent):
 
     T = 300 * unit.kelvin
     reporter_step = 500
-    path = os.path.join(base_path, lig_index)
-    dcd_path = os.path.join(path, sim_path, 'simulation.dcd')
-    data_path = os.path.join(path, sim_path, 'sim.h5')
+    name_path = os.path.join(base_path, name_path)
+    if(not os.path.exists(name_path))
+        os.mkdir(name_path)
+
+    dcd_path = os.path.join(name_path, 'simulation.dcd')
+    data_path = os.path.join(name_path, 'sim.h5')
+    lig_path = os.path.join(name_path, "ligand.sdf")
 
     if (not os.path.exists(path)):
-        create_system(smile, name, )
+        create_system(name_path, lig_path, smile, solvent)
     else:
         try:
-            system_path = os.path.join(path, "system")
-            system_vac_path = os.path.join(path, "system_vac")
+            system_path = os.path.join(name_path, "system")
+            system_vac_path = os.path.join(name_path, "system_vac")
             system = LRComplex.load(system_path)
             system_vac = LRComplex.load(system_vac_path)
         except Exception as e:
@@ -183,7 +187,9 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
     alchemy_system_vac = factory.create_alchemical_system(
         system_vac.system, system_vac_region)
 
-    #I dont know why mmtools doesnt do this automatically??
+
+    '''
+    #I dont know why mmtools doesnt do this automatically?? -- BECAUSE IT DOESNT WORK 
     for force in alchemy_system.getForces():
         if (force.__class__ == openmm.CustomNonbondedForce
                 or force.__class__ == openmm.CustomBondForce):
@@ -193,6 +199,7 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
                     force.addEnergyParameterDerivative('lambda_electrostatics')
                 elif (force.getGlobalParameterName(i) == "lambda_sterics"):
                     force.addEnergyParameterDerivative('lambda_sterics')
+    
 
     for force in alchemy_system_vac.getForces():
         if (force.__class__ == openmm.CustomNonbondedForce
@@ -203,6 +210,8 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
                     force.addEnergyParameterDerivative('lambda_electrostatics')
                 elif (force.getGlobalParameterName(i) == "lambda_sterics"):
                     force.addEnergyParameterDerivative('lambda_sterics')
+
+    '''
 
     therm_state = ThermodynamicState(alchemy_system, T)
     therm_vac_state = ThermodynamicState(alchemy_system_vac, T)
@@ -263,9 +272,8 @@ def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
 
 
 if __name__ == "__main__":
-    base_file_path = "/work/users/r/d/rdey/BigBindDataset_New/"
-    lig_index = str(112014)
-    sim_path = "TD"
+    base_file_path = "/work/users/r/d/rdey/GBSA_CHECK"
+    
     curr_path = os.path.join(base_file_path, lig_index, sim_path)
     if (not os.path.exists(curr_path)):
         os.mkdir(curr_path)
