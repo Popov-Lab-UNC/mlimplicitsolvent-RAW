@@ -37,12 +37,13 @@ class AI_Solvation_calc:
         return system_F, molecule, pdb.topology
 
     def __init__(self, model_dict, name, smiles, path):
-        self.lambda_electrostatics = [0.0, 0.5, 1.0]
+        self.lambda_electrostatics = [0, 0.2, 0.4, 0.6, 0.7, 0.8, 1]
         self.lambda_sterics = [
-            0.0, 0.5, 1.0
+            0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8,
+            0.85, 0.9, 1
         ]
-        self.n_steps = 250000
-        self.report_interval = 1000
+        self.n_steps = 300
+        self.report_interval = 100
         self._T = 300 * kelvin
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
@@ -212,7 +213,7 @@ class AI_Solvation_calc:
             nbforces.updateParametersInContext(simulation.context)
 
         simulation.minimizeEnergy()
-        simulation.reporters.append(DCDReporter(path, report_intervals))
+        simulation.reporters.append(DCDReporter(path, self.report_interval))
 
         simulation.step(self.n_steps)
         with open(com, 'w'):
@@ -431,6 +432,16 @@ class AI_Solvation_calc:
             1.0, 1.0)]  #mbar_vac.delta_f_[0][1] -
         F_solv = F_solv_kt * self._T * kB
 
+        print("OVERLAP_MATRIX")
+        print(mbar_solv.overlap_matrix)
+
+
+        F_solv_dkt =  -mbar_solv.d_delta_f_[(0, 0)][(1,1)]
+
+        Error = F_solv_dkt * self._T * kB
+
+        print(f"Error: {Error.value_in_unit(kilojoule_per_mole) * 0.239006}")
+
         return -F_solv.value_in_unit(kilojoule_per_mole) * 0.239006
 
 
@@ -469,7 +480,7 @@ if __name__ == "__main__":
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/LSNN_250k'
+    path = '/work/users/r/d/rdey/LSNN_250k_300'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path,
                             smiles=smile,

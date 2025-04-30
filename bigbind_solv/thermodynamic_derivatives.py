@@ -1,12 +1,21 @@
 from openmmtools.alchemy import AbsoluteAlchemicalFactory
 from openmmtools import alchemy
-from openmmtools.states import ThermodynamicState, CompoundThermodynamicState
+from openmmtools.states import ThermodynamicState, CompoundThermodynamicState, SamplerState
 from openmm import unit, LangevinMiddleIntegrator, Platform, app
 from openmm.app.dcdreporter import DCDReporter
 import openmm
+from openmm.app import *
 from create_dataset import SolvDatasetReporter
 from lr_complex import LRComplex, get_lr_complex
 import os
+import alchemlyb
+from alchemlyb.estimators import MBAR
+from alchemlyb.preprocessing.subsampling import decorrelate_u_nk
+from openmmtools.constants import kB
+import numpy as np
+import h5py
+import subprocess
+import time
 
 
 class ThermodynamicDerivativesReporter(SolvDatasetReporter):
@@ -14,23 +23,23 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
 
 
     def get_parameter_derivative(context, param_name, dp=1e-4):
-    """ 
-    Uses finite difference to calculate the derivative of the 
-    potential energy with respect to a parameter.
-    """
-    parameter = context.getParameter(param_name)
+        """ 
+        Uses finite difference to calculate the derivative of the 
+        potential energy with respect to a parameter.
+        """
+        parameter = context.getParameter(param_name)
 
-    if (parameter == 1.0):
-        dp = -dp
+        if (parameter == 1.0):
+            dp = -dp
 
-    initial_energy = context.getState(getEnergy=True).getPotentialEnergy()
+        initial_energy = context.getState(getEnergy=True).getPotentialEnergy()
 
-    context.setParameter(param_name, parameter + dp)
-    final_energy = context.getState(getEnergy=True).getPotentialEnergy()
+        context.setParameter(param_name, parameter + dp)
+        final_energy = context.getState(getEnergy=True).getPotentialEnergy()
 
-    context.setParameter(param_name, parameter)
+        context.setParameter(param_name, parameter)
 
-    return (final_energy - initial_energy) / dp
+        return (final_energy - initial_energy) / dp
 
 
     """ 
@@ -101,182 +110,286 @@ class ThermodynamicDerivativesReporter(SolvDatasetReporter):
         self.file["lambda_electrostatics"][-1] = lambda_electrostatics
 
 
-#will do later lol
-def create_system(out_folder, lig_file, smile, solvent):
-    kwargs = {
-        "nonbonded_cutoff": 0.9 * unit.nanometer,
-        # "nonbonded_cutoff": 1.5*unit.nanometer,
-        "constraints": app.HBonds,
-        "box_padding": 1.6 * unit.nanometer,
-        # "box_padding": 2.0*unit.nanometer,
-        "lig_ff": "gaff",
-        "cache_dir": out_folder,
-    }
-    lig_file = os.path.join(out_folder, "ligand.sdf")
-    if not os.path.exists(lig_file):
-        smi_to_protonated_sdf(smile, lig_file)
+#only need positions from DCD, but cant use dcd so impromptu function:
+class PositionsReporter:
+    """Saves ligand-only positions to an HDF5 file at specified intervals."""
 
-    system = get_lr_complex(None,
-                            lig_file,
-                            solvent=solvent,
-                            nonbonded_method=app.PME,
-                            include_barostat=True if solvent = "tip3p" else False,
-                            **kwargs)
-    system_vac = get_lr_complex(None, lig_file, solvent="none", **kwargs)
+    def __init__(self, filename, mol_indices, report_interval):
+        self.report_interval = report_interval
+        self.mol_indices = mol_indices
 
-    system.save(os.path.join(out_folder, "system"))
-    system_vac.save(os.path.join(out_folder, "system_vac"))
+        self.file = h5py.File(filename, 'w')
+        self.file.create_dataset(
+            "positions",
+            maxshape=(None, len(self.mol_indices), 3),
+            shape=(0, len(self.mol_indices), 3),
+            dtype=np.float32
+        )
 
-    system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
-    system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
-    return
+    def __del__(self):
+        self.file.close()
 
+    def describeNextReport(self, simulation):
+        steps = self.report_interval - simulation.currentStep % self.report_interval
+        return (steps, True, False, False, False, None)
 
-def freeze_atoms(system, lig_indicies):
-    for i in lig_indicies:
-        system.system.setParticleMass(i, 0.0)
-    return system
+    def report(self, simulation, state):
+        positions = state.getPositions(asNumpy=True).value_in_unit(unit.nanometer)
+
+        # Resize and append ligand positions
+        current_length = self.file["positions"].shape[0]
+        self.file["positions"].resize((current_length + 1, len(self.mol_indices), 3))
+        self.file["positions"][-1] = positions[self.mol_indices]
 
 
-def runSim(base_path, lig_index, sim_path, lambda_elec, lambda_sterics, steps,
-           stepSize, solvent):
-
-    T = 300 * unit.kelvin
-    reporter_step = 500
-    name_path = os.path.join(base_path, name_path)
-    if(not os.path.exists(name_path))
-        os.mkdir(name_path)
-
-    dcd_path = os.path.join(name_path, 'simulation.dcd')
-    data_path = os.path.join(name_path, 'sim.h5')
-    lig_path = os.path.join(name_path, "ligand.sdf")
-
-    if (not os.path.exists(path)):
-        create_system(name_path, lig_path, smile, solvent)
-    else:
-        try:
-            system_path = os.path.join(name_path, "system")
-            system_vac_path = os.path.join(name_path, "system_vac")
-            system = LRComplex.load(system_path)
-            system_vac = LRComplex.load(system_vac_path)
-        except Exception as e:
-            print(f"Existing files corrupted... Continuing...: {str(e)}")
-            return
-
-    factory = AbsoluteAlchemicalFactory(
-        consistent_exceptions=False,
-        alchemical_pme_treatment='direct-space',
-        disable_alchemical_dispersion_correction=True,
-        split_alchemical_forces=True)
-
-    system_region = alchemy.AlchemicalRegion(
-        alchemical_atoms=system.lig_indices,
-        annihilate_electrostatics=True,
-        annihilate_sterics=False)
-    system_vac_region = alchemy.AlchemicalRegion(
-        alchemical_atoms=system_vac.lig_indices,
-        annihilate_electrostatics=True,
-        annihilate_sterics=False)
-
-    print("Alchemical Atoms:", system_region.alchemical_atoms)
-
-    quit()
-
-    alchemy_system = factory.create_alchemical_system(system.system,
-                                                      system_region)
-    alchemy_system_vac = factory.create_alchemical_system(
-        system_vac.system, system_vac_region)
 
 
-    '''
-    #I dont know why mmtools doesnt do this automatically?? -- BECAUSE IT DOESNT WORK 
-    for force in alchemy_system.getForces():
-        if (force.__class__ == openmm.CustomNonbondedForce
-                or force.__class__ == openmm.CustomBondForce):
-            for i in range(0, force.getNumGlobalParameters()):
-                if (force.getGlobalParameterName(i) == "lambda_electrostatics"
-                    ):
-                    force.addEnergyParameterDerivative('lambda_electrostatics')
-                elif (force.getGlobalParameterName(i) == "lambda_sterics"):
-                    force.addEnergyParameterDerivative('lambda_sterics')
+
+
+class ImplicitSolv:
+
+
+    @staticmethod
+    def create_system(out_folder, lig_file, smile, solvent):
+        kwargs = {
+            "nonbonded_cutoff": 0.9 * unit.nanometer,
+            # "nonbonded_cutoff": 1.5*unit.nanometer,
+            "constraints": app.HBonds,
+            "box_padding": 1.6 * unit.nanometer,
+            # "box_padding": 2.0*unit.nanometer,
+            "lig_ff": "gaff",
+            "cache_dir": out_folder,
+        }
+        lig_file = os.path.join(out_folder, "ligand.sdf")
+        if not os.path.exists(lig_file):
+            cmd = f'obabel "-:{smile}" -O "{lig_file}" --gen3d --pH 7'
+            subprocess.run(cmd, check=True, shell=True, timeout=60)
+        system = get_lr_complex(None,
+                                lig_file,
+                                solvent=solvent,
+                                include_barostat=True if solvent == "tip3p" else False,
+                                **kwargs)
+        system_vac = get_lr_complex(None, lig_file, solvent="none", **kwargs)
+
+        system.save(os.path.join(out_folder, "system"))
+        system_vac.save(os.path.join(out_folder, "system_vac"))
+
+        system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
+        system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
+        return system, system_vac
+
+
+
+    @staticmethod
+    def freeze_atoms(system, lig_indicies):
+        for i in lig_indicies:
+            system.system.setParticleMass(i, 0.0)
+        return system
     
 
-    for force in alchemy_system_vac.getForces():
-        if (force.__class__ == openmm.CustomNonbondedForce
-                or force.__class__ == openmm.CustomBondForce):
-            for i in range(0, force.getNumGlobalParameters()):
-                if (force.getGlobalParameterName(i) == "lambda_electrostatics"
-                    ):
-                    force.addEnergyParameterDerivative('lambda_electrostatics')
-                elif (force.getGlobalParameterName(i) == "lambda_sterics"):
-                    force.addEnergyParameterDerivative('lambda_sterics')
 
-    '''
+    def __init__(self, base_path, name, smile, solvent):
+        self._T = 300 * unit.kelvin
+        self.platform = Platform.getPlatformByName("CUDA")
+        self.electrostatics = [0.0, 0.5, 1.0]
+        self.sterics = [
+            0.0, 0.5, 1.0
+        ]
+        self.name = name
+        self.n_steps = 250000
+        self.report_interval = 1000
+        self.compound_state, self.compound_state_vac, self.system, self.system_vac = self.createCompoundStates(base_path, smile, name, solvent)
 
-    therm_state = ThermodynamicState(alchemy_system, T)
-    therm_vac_state = ThermodynamicState(alchemy_system_vac, T)
 
-    therm_state.lambda_electrostatics = lambda_elec
-    therm_state.lambda_sterics = lambda_sterics
+    def get_solv_lambda_schedule(self):
+        """ Returns a list of tuples of (lambda_ster, lambda_elec) 
+        for the solvation simulations """
 
-    therm_vac_state.lambda_electrostatics = lambda_elec
-    therm_vac_state.lambda_sterics = lambda_sterics
+        lambda_schedule = []
+        lambda_ster = 1.0
+        for lambda_elec in reversed(self.electrostatics):
+            lambda_schedule.append((lambda_ster, lambda_elec))
 
-    alchemical_state = alchemy.AlchemicalState.from_system(alchemy_system)
+        lambda_elec = 0.0
+        for lambda_ster in reversed(self.sterics):
+            lambda_schedule.append((lambda_ster, lambda_elec))
 
-    alchemical_state.lambda_sterics = lambda_sterics
-    alchemical_state.lambda_electrostatics = lambda_elec
+        return lambda_schedule
 
-    alchemical_state_vac = alchemy.AlchemicalState.from_system(
-        alchemy_system_vac)
 
-    compound_state = CompoundThermodynamicState(
-        thermodynamic_state=therm_state, composable_states=[alchemical_state])
-    compound_state_vac = CompoundThermodynamicState(
-        thermodynamic_state=therm_vac_state,
-        composable_states=[alchemical_state_vac])
+    def createCompoundStates(self, base_path, smile, name, solvent):
+        self.name_path = os.path.join(base_path, name)
+        system_path = os.path.join(self.name_path, "system")
+        lig_path = os.path.join(self.name_path, "ligand.sdf")
 
-    compound_state.lambda_electrostatics = lambda_elec
-    compound_state.lambda_sterics = lambda_sterics
+        if(not os.path.exists(self.name_path)):
+            os.mkdir(self.name_path)
+        if(not os.path.exists(system_path)):
+            system, system_vac = self.create_system(self.name_path, lig_path, smile, solvent)
+           
+        else:
+            try:
+                system_vac_path = os.path.join(self.name_path, "system_vac")
+                system = LRComplex.load(system_path)
+                system_vac = LRComplex.load(system_vac_path)
+            except Exception as e:
+                print(f"Existing files corrupted... Continuing...: {str(e)}")
+                return
 
-    compound_state_vac.lambda_electrostatics = lambda_elec
-    compound_state_vac.lambda_sterics = lambda_sterics
+        self.PDB = PDBFile(os.path.join(self.name_path, "system.pdb"))
+        self.mol_indices = system_vac.lig_indices
+        
+        factory = AbsoluteAlchemicalFactory(
+            consistent_exceptions=False,
+            alchemical_pme_treatment='direct-space',
+            disable_alchemical_dispersion_correction=True,
+            split_alchemical_forces=True)
 
-    integrator = LangevinMiddleIntegrator(T, 2.0 / unit.picoseconds, stepSize)
+        system_region = alchemy.AlchemicalRegion(
+            alchemical_atoms=system.lig_indices,
+            annihilate_electrostatics=True,
+            annihilate_sterics=False)
+        system_vac_region = alchemy.AlchemicalRegion(
+            alchemical_atoms= system_vac.lig_indices,
+            annihilate_electrostatics=True,
+            annihilate_sterics=False)
+        
+        print("Alchemical Atoms:", system_region.alchemical_atoms)
 
-    integrator_vac = LangevinMiddleIntegrator(T, 2.0 / unit.picoseconds,
-                                              stepSize)
+        alchemy_system = factory.create_alchemical_system(system.system,
+                                                        system_region)
+        alchemy_system_vac = factory.create_alchemical_system(
+            system_vac.system, system_vac_region)
 
-    platform = Platform.getPlatformByName("CUDA")
+        therm_state = ThermodynamicState(alchemy_system, self._T)
+        therm_vac_state = ThermodynamicState(alchemy_system_vac, self._T)
 
-    context = compound_state.create_context(integrator, platform)
-    context.setPositions(system.get_positions())
+        alchemical_state = alchemy.AlchemicalState.from_system(alchemy_system)
 
-    context_vac = compound_state_vac.create_context(integrator_vac, platform)
-    context_vac.setPositions(system_vac.get_positions())
+        alchemical_state_vac = alchemy.AlchemicalState.from_system(
+            alchemy_system_vac)
 
-    reporter_solv = ThermodynamicDerivativesReporter(data_path, system,
-                                                     context_vac,
-                                                     reporter_step)
-    #reporter_dcd = DCDReporter(dcd_path, reporter_step)
+        compound_state = CompoundThermodynamicState(
+            thermodynamic_state=therm_state, composable_states=[alchemical_state])
+        compound_state_vac = CompoundThermodynamicState(
+            thermodynamic_state=therm_vac_state,
+            composable_states=[alchemical_state_vac])
 
-    for _ in range(0, steps, reporter_step):
-        integrator.step(reporter_step)
-        state = context.getState(getPositions=True,
-                                 getForces=True,
-                                 getEnergy=True,
-                                 getParameters=True,
-                                 getParameterDerivatives=True)
-        #reporter_dcd.report(context, state)
-        reporter_solv.report(context, state)
+        return compound_state, compound_state_vac, alchemy_system, alchemy_system_vac
+
+    def run_sim(self, lambda_elec, lambda_ster, vacuum = False):
+        if vacuum:
+            compound_state = self.compound_state_vac
+            file_name = os.path.join(self.name_path, f"{self.name}_vac_{lambda_elec}_{lambda_ster}")
+        else:
+            compound_state = self.compound_state
+            file_name = os.path.join(self.name_path, f"{self.name}_{lambda_elec}_{lambda_ster}")
+
+        compound_state.lambda_electrostatics = lambda_elec
+        compound_state.lambda_sterics = lambda_ster
+
+        com_file_name = file_name + ".com"
+        file_name += ".h5"
+
+        if(os.path.exists(com_file_name)):
+            print("File Already Exists, Continuing...")
+            return
+
+
+        integrator = LangevinMiddleIntegrator(self._T, 2.0 / unit.picoseconds, self.n_steps)
+
+        self.curr_context = compound_state.create_context(integrator, self.platform)
+        self.curr_context.setPositions(self.PDB.positions)
+
+        reporter_solv = PositionsReporter(file_name, self.mol_indices, self.report_interval)
+        
+        for _ in range(0, self.n_steps, self.report_interval):
+            integrator.step(self.report_interval)
+            state = self.curr_context.getState(getPositions=True,
+                                    getForces=True,
+                                    getEnergy=True,
+                                    getParameters=True,
+                                    getParameterDerivatives=True)
+            #reporter_dcd.report(context, state)
+            reporter_solv.report(self.curr_context, state)
+
+        with open(com_file_name, 'w'):
+            pass
+
+    def run_all(self):
+        print("Removing electrostatics")
+        lambda_ster = 1.0
+        for lambda_elec in reversed(self.electrostatics):
+            print(f"Running {lambda_ster=}, {lambda_elec=}")
+            self.run_sim(lambda_ster, lambda_elec)
+
+        print("Removing sterics")
+        lambda_elec = 0.0
+        for lambda_ster in reversed(self.sterics):
+            print(f"Running {lambda_ster=}, {lambda_elec=}")
+            self.run_sim(lambda_ster, lambda_elec)
+
+        print("Re-adding electrostatics in vacuum")
+        lambda_ster = 0.0
+       
+        for lambda_elec in self.electrostatics:
+            print(f"Running {lambda_ster=}, {lambda_elec=}")
+            self.run_sim(lambda_ster,
+                          lambda_elec,
+                          vacuum=True)
+
+    def calculate_energy_for_traj(pos, e_lambda_ster, e_lambda_elec):
+        u = np.zeros(len(pos))
+        for idx, coords in enumerate(pos):
+            self.compound_state.lambda_electrostatics = e_lambda_elec
+            self.compound_state.lambda_sterics = e_lambda_ster
+            self.compound_state.apply_to_context(self.curr_context)
+            self.curr_context.minimizeEnergy()
+            U = self.curr_context.getState(getEnergy=True).getPotentialEnergy()
+
+            u[i] = U / (kB * self._T)
+        return u
+
+
+    def compute_delta_F(self):
+        """ Compute the solvation free energy using MBAR """
+        u_nk_vac = self.get_all_vac_u_nk()
+        u_nk_solv = self.get_all_solv_u_nk()
+        
+        T = u_nk_vac.attrs["temperature"] * unit.kelvin
+
+        mbar_vac = MBAR()
+        mbar_vac.fit(u_nk_vac)
+
+        mbar_solv = MBAR()
+        mbar_solv.fit(u_nk_solv)
+
+        from alchemlyb.visualisation import plot_mbar_overlap_matrix
+        ax = plot_mbar_overlap_matrix(mbar_solv.overlap_matrix)
+        ax.figure.savefig("/work/users/r/d/rdey/ml_implicit_solvent/mbar_overlap_matrix.png", dpi=300)
+        
+        F_solv_kt = -mbar_solv.delta_f_[(0, 0)][(1,1)] + mbar_vac.delta_f_[0][1]
+        F_solv_dkt =  -mbar_solv.d_delta_f_[(0, 0)][(1,1)] + mbar_vac.d_delta_f_[0][1]
+        F_solv = F_solv_kt * T * kB
+        F_solv_error = F_solv_dkt * T * kB
+
+        return F_solv.value_in_unit(unit.kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(unit.kilojoule_per_mole) * 0.239006
+
+
+
+
+    
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
     base_file_path = "/work/users/r/d/rdey/GBSA_CHECK"
-    
-    curr_path = os.path.join(base_file_path, lig_index, sim_path)
-    if (not os.path.exists(curr_path)):
-        os.mkdir(curr_path)
-
-    runSim(base_file_path, lig_index, sim_path, 1.0, 1.0, 10000,
-           2.0 * unit.femtoseconds)
+    start = time.time()
+    main = ImplicitSolv(base_file_path, '4-methoxy-N,N-dimethyl-benzamide','CN(C)C(=O)c1ccc(cc1)OC', "gbn2")
+    main.run_all()
+    print(time.time() - start)
