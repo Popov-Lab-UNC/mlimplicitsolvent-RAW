@@ -348,8 +348,7 @@ class ImplicitSolv:
             U = self.curr_context.getState(getEnergy=True).getPotentialEnergy()
 
             u[i] = U / (kB * self._T)
-        return u
-
+        return  u
 
     def compute_delta_F(self):
         """ Compute the solvation free energy using MBAR """
