@@ -20,7 +20,7 @@ from tqdm import tqdm
 import pandas as pd
 from openmm import LocalEnergyMinimizer
 
-
+#Not Needed for Solvation Calculations-- Used for dataset creation.
 class ThermodynamicDerivativesReporter(SolvDatasetReporter):
     def get_parameter_derivative(context, param_name, dp=1e-4):
         """ 
@@ -143,6 +143,8 @@ class PositionsReporter:
         self.file["positions"][-1] = positions[self.mol_indices]
 
 
+
+#Primary Class for Implicit Solvation Calculation
 class ImplicitSolv:
     @staticmethod
     def create_system(out_folder, lig_file, smile, solvent):
@@ -173,12 +175,6 @@ class ImplicitSolv:
         system.save_to_pdb(os.path.join(out_folder, "system.pdb"))
         system_vac.save_to_pdb(os.path.join(out_folder, "system_vac.pdb"))
         return system, system_vac
-
-    @staticmethod
-    def freeze_atoms(system, lig_indicies):
-        for i in lig_indicies:
-            system.system.setParticleMass(i, 0.0)
-        return system
 
     def __init__(self, base_path, name, smile, solvent):
         self._T = 300 * unit.kelvin
@@ -291,13 +287,14 @@ class ImplicitSolv:
             print("File Already Exists, Continuing...")
             return
 
-        integrator = LangevinMiddleIntegrator(self._T, 2.0 / unit.picoseconds,
-                                              self.n_steps)
+        integrator = LangevinMiddleIntegrator(self._T, 1.0 / unit.picoseconds,
+                                              0.002 * unit.picoseconds)
 
         self.curr_context = compound_state.create_context(
             integrator, self.platform)
+        print(self.PDB.positions)
         self.curr_context.setPositions(self.PDB.positions)
-
+        LocalEnergyMinimizer.minimize(self.curr_context)
         reporter_solv = PositionsReporter(file_name, self.mol_indices,
                                           self.report_interval)
 
@@ -319,30 +316,28 @@ class ImplicitSolv:
         lambda_ster = 1.0
         for lambda_elec in reversed(self.electrostatics):
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.run_sim(lambda_ster, lambda_elec)
+            self.run_sim(lambda_elec, lambda_ster)
 
         print("Removing sterics")
         lambda_elec = 0.0
         for lambda_ster in reversed(self.sterics):
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.run_sim(lambda_ster, lambda_elec)
+            self.run_sim(lambda_elec, lambda_ster)
 
         print("Re-adding electrostatics in vacuum")
         lambda_ster = 0.0
 
         for lambda_elec in self.electrostatics:
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.run_sim(lambda_ster, lambda_elec, vacuum=True)
+            self.run_sim(lambda_elec, lambda_ster, vacuum=True)
 
-    def calculate_energy_for_traj(self, pos, e_lambda_ster, e_lambda_elec, vacuum):
+    def calculate_energy_for_traj(self, pos, energy_context, e_lambda_ster, e_lambda_elec, vacuum):
         u = np.zeros(len(pos))
         if vacuum:
             compound_state = self.compound_state_vac
         else:
             compound_state = self.compound_state
 
-            integrator = LangevinMiddleIntegrator(self._T, 2.0 / unit.picoseconds, 0)
-            energy_context = compound_state.create_context(integrator, self.platform)
             
             compound_state.lambda_electrostatics = e_lambda_elec
             compound_state.lambda_sterics = e_lambda_ster
@@ -350,11 +345,79 @@ class ImplicitSolv:
 
         for idx, coords in enumerate(pos):
             energy_context.setPositions(coords)
-            LocalEnergyMinimizer.minimize(energy_context)
+            #LocalEnergyMinimizer.minimize(energy_context)
             U = energy_context.getState(getEnergy=True).getPotentialEnergy()
 
             u[idx] = U / (kB * self._T)
         return u
+    
+
+    def get_vac_u_nk(self):
+        cache_path = os.path.join(self.name_path, f"{self.name}_vac_u_nk.pkl")
+        if os.path.exists(cache_path):
+            return pd.read_pickle(cache_path)
+        
+        integrator = LangevinMiddleIntegrator(self._T, 1.0 / unit.picoseconds, 0.002 * unit.picoseconds)
+        energy_context = self.compound_state_vac.create_context(integrator, self.platform)
+
+        vac_u_nk_df = []
+
+        for lambda_elec in self.electrostatics:
+            indiv_path = os.path.join(
+                self.name_path,
+                f"{self.name}_{lambda_elec}_vac_u_nk.pkl")
+            '''
+            if os.path.exists(indiv_path):
+                df = pd.read_pickle(indiv_path)
+                df = self.u_nk_processing_df(df)
+                vac_u_nk_df.append(df)
+                continue
+
+            '''
+            file_name = os.path.join(
+            self.name_path, f"{self.name}_vac_{lambda_elec}_0.0")
+            file_name += ".h5"
+
+            with h5py.File(file_name, 'r') as f:
+                pos = f['positions'][:]
+            df = pd.DataFrame({
+                "time": [
+                    self.report_interval * idx * 0.002
+                    for idx, _ in enumerate(pos)
+                ],
+                "fep-lambda": [lambda_elec] * len(pos),
+            })
+            df = df.set_index(["time", "fep-lambda"])
+
+            for e_lambda_elec in self.electrostatics:
+                u = self.calculate_energy_for_traj(pos,energy_context, 0.0,
+                                                   e_lambda_elec, True)
+                df[(e_lambda_elec)] = u
+
+            df.to_pickle(indiv_path)
+            df = self.u_nk_processing_df(df)
+
+            vac_u_nk_df.append(df)
+
+        vac_u_nk_df = alchemlyb.concat(vac_u_nk_df)
+
+        new_index = []
+        for i, index in enumerate(vac_u_nk_df.index):
+            new_index.append((i, *index[1:]))
+        vac_u_nk_df.index = pd.MultiIndex.from_tuples(
+            new_index, names=vac_u_nk_df.index.names)
+
+        vac_u_nk_df.to_pickle(cache_path)
+
+        return vac_u_nk_df
+
+
+
+
+
+            
+            
+
 
     def get_solv_u_nk(self):
 
@@ -362,11 +425,16 @@ class ImplicitSolv:
 
         if os.path.exists(cache_path):
             return pd.read_pickle(cache_path)
+        
+        integrator = LangevinMiddleIntegrator(self._T, 1.0 / unit.picoseconds, 0.002 * unit.picoseconds)
+        energy_context = self.compound_state.create_context(integrator, self.platform)
+            
 
         solv_u_nk_df = []
 
         for (lambda_ster,
              lambda_elec) in tqdm(self.get_solv_lambda_schedule()):
+            ''
             indiv_path = os.path.join(
                 self.name_path,
                 f"{self.name}_{lambda_elec}_{lambda_ster}_u_nk.pkl")
@@ -374,7 +442,7 @@ class ImplicitSolv:
                 df = pd.read_pickle(indiv_path)
                 df = self.u_nk_processing_df(df)
                 solv_u_nk_df.append(df)
-
+                continue
             file_name = os.path.join(
                 self.name_path, f"{self.name}_{lambda_elec}_{lambda_ster}")
             file_name += ".h5"
@@ -392,7 +460,7 @@ class ImplicitSolv:
 
             for (e_lambda_ster,
                  e_lambda_elec) in self.get_solv_lambda_schedule():
-                u = self.calculate_energy_for_traj(pos, e_lambda_ster,
+                u = self.calculate_energy_for_traj(pos,energy_context, e_lambda_ster,
                                                    e_lambda_elec, False)
                 df[(e_lambda_ster, e_lambda_elec)] = u
 
@@ -423,10 +491,10 @@ class ImplicitSolv:
 
     def compute_delta_F(self):
         """ Compute the solvation free energy using MBAR """
-        u_nk_vac = self.get_all_vac_u_nk()
-        u_nk_solv = self.get_all_solv_u_nk()
+        u_nk_vac = self.get_vac_u_nk()
+        u_nk_solv = self.get_solv_u_nk()
 
-        T = u_nk_vac.attrs["temperature"] * unit.kelvin
+        T = u_nk_vac.attrs["temperature"]
 
         mbar_vac = MBAR()
         mbar_vac.fit(u_nk_vac)
@@ -444,21 +512,27 @@ class ImplicitSolv:
             (0, 0)][(1, 1)] + mbar_vac.delta_f_[0][1]
         F_solv_dkt = -mbar_solv.d_delta_f_[
             (0, 0)][(1, 1)] + mbar_vac.d_delta_f_[0][1]
-        F_solv = F_solv_kt * T * kB
-        F_solv_error = F_solv_dkt * T * kB
+        F_solv = F_solv_kt * kB * T
+        F_solv_error = F_solv_dkt * kB * T
 
         return F_solv.value_in_unit(
             unit.kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(
                 unit.kilojoule_per_mole) * 0.239006
 
-
+import sys
 if __name__ == "__main__":
 
 
     base_file_path = "/work/users/r/d/rdey/GBSA_CHECK"
+    smile = str(sys.argv[1])
+    expt = float(sys.argv[2])
+    name = str(sys.argv[3])
+    print(f"Current: {name}, {smile}, {expt}")
     start = time.time()
-    main = ImplicitSolv(base_file_path, "(2Z)-3,7-dimethylocta-2,6-dien-1-ol",
-                        'CC(=CCC/C(=C\CO)/C)C', "gbn2")
+    main = ImplicitSolv(base_file_path, name,
+                        smile, "gbn2")
     main.run_all()
-    main.get_solv_u_nk()
+    res = main.compute_delta_F()
     print(time.time() - start)
+    print(f"{name}, {res}, {expt}")
+    
