@@ -37,10 +37,9 @@ class AI_Solvation_calc:
         return system_F, molecule, pdb.topology
 
     def __init__(self, model_dict, name, smiles, path):
-        self.lambda_electrostatics = [0, 0.2, 0.4, 0.6, 0.7, 0.8, 1]
+        self.lambda_electrostatics = [0.0, 1.0]
         self.lambda_sterics = [
-            0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8,
-            0.85, 0.9, 1
+            0.0, 1.0
         ]
         self.n_steps = 300
         self.report_interval = 100
@@ -476,11 +475,11 @@ import sys
 if __name__ == "__main__":
 
     model_path = '/work/users/r/d/rdey/ml_implicit_solvent/trained_models/280KDATASET2Kv3model.dict'
-
+    beg_start = time.time()
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
-    path = '/work/users/r/d/rdey/LSNN_250k_300'
+    path = '/work/users/r/d/rdey/Final_LSNN'
     print(f"Current: {name}, {smile}, {expt}")
     obj = AI_Solvation_calc(model_dict=model_path,
                             smiles=smile,
@@ -488,4 +487,5 @@ if __name__ == "__main__":
                             name=name)
     obj.run_all_sims(overwrite=False)
     res = obj.compute_delta_F()
+    print(f"Time: {time.time()-beg_start}")
     print(f"{name}, {res}, {expt}")

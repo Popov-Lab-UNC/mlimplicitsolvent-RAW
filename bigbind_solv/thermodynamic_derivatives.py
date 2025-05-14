@@ -338,10 +338,9 @@ class ImplicitSolv:
         else:
             compound_state = self.compound_state
 
-            
-            compound_state.lambda_electrostatics = e_lambda_elec
-            compound_state.lambda_sterics = e_lambda_ster
-            compound_state.apply_to_context(energy_context)
+        compound_state.lambda_electrostatics = e_lambda_elec
+        compound_state.lambda_sterics = e_lambda_ster
+        compound_state.apply_to_context(energy_context)
 
         for idx, coords in enumerate(pos):
             energy_context.setPositions(coords)
@@ -352,10 +351,12 @@ class ImplicitSolv:
         return u
     
 
-    def get_vac_u_nk(self):
+    def get_vac_u_nk(self, ts):
         cache_path = os.path.join(self.name_path, f"{self.name}_vac_u_nk.pkl")
+        '''
         if os.path.exists(cache_path):
             return pd.read_pickle(cache_path)
+        '''
         
         integrator = LangevinMiddleIntegrator(self._T, 1.0 / unit.picoseconds, 0.002 * unit.picoseconds)
         energy_context = self.compound_state_vac.create_context(integrator, self.platform)
@@ -366,14 +367,12 @@ class ImplicitSolv:
             indiv_path = os.path.join(
                 self.name_path,
                 f"{self.name}_{lambda_elec}_vac_u_nk.pkl")
-            '''
             if os.path.exists(indiv_path):
                 df = pd.read_pickle(indiv_path)
+                df = df.iloc[:ts]
                 df = self.u_nk_processing_df(df)
                 vac_u_nk_df.append(df)
                 continue
-
-            '''
             file_name = os.path.join(
             self.name_path, f"{self.name}_vac_{lambda_elec}_0.0")
             file_name += ".h5"
@@ -394,7 +393,7 @@ class ImplicitSolv:
                                                    e_lambda_elec, True)
                 df[(e_lambda_elec)] = u
 
-            df.to_pickle(indiv_path)
+            #df.to_pickle(indiv_path)
             df = self.u_nk_processing_df(df)
 
             vac_u_nk_df.append(df)
@@ -419,7 +418,7 @@ class ImplicitSolv:
             
 
 
-    def get_solv_u_nk(self):
+    def get_solv_u_nk(self, ts):
 
         cache_path = os.path.join(self.name_path, f"{self.name}_u_nk.pkl")
 
@@ -440,9 +439,12 @@ class ImplicitSolv:
                 f"{self.name}_{lambda_elec}_{lambda_ster}_u_nk.pkl")
             if os.path.exists(indiv_path):
                 df = pd.read_pickle(indiv_path)
+                df = df.iloc[:ts]
                 df = self.u_nk_processing_df(df)
                 solv_u_nk_df.append(df)
                 continue
+            else:
+                quit()
             file_name = os.path.join(
                 self.name_path, f"{self.name}_{lambda_elec}_{lambda_ster}")
             file_name += ".h5"
@@ -464,12 +466,11 @@ class ImplicitSolv:
                                                    e_lambda_elec, False)
                 df[(e_lambda_ster, e_lambda_elec)] = u
 
-            df.to_pickle(indiv_path)
+            #df.to_pickle(indiv_path)
             df = self.u_nk_processing_df(df)
             solv_u_nk_df.append(df)
 
         solv_u_nk_df = alchemlyb.concat(solv_u_nk_df)
-
         new_index = []
         for i, index in enumerate(solv_u_nk_df.index):
             new_index.append((i, *index[1:]))
@@ -489,12 +490,10 @@ class ImplicitSolv:
         df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
         return df
 
-    def compute_delta_F(self):
+    def compute_delta_F(self, ts):
         """ Compute the solvation free energy using MBAR """
-        u_nk_vac = self.get_vac_u_nk()
-        u_nk_solv = self.get_solv_u_nk()
-
-        T = u_nk_vac.attrs["temperature"]
+        u_nk_vac = self.get_vac_u_nk(ts)
+        u_nk_solv = self.get_solv_u_nk(ts)
 
         mbar_vac = MBAR()
         mbar_vac.fit(u_nk_vac)
@@ -512,8 +511,8 @@ class ImplicitSolv:
             (0, 0)][(1, 1)] + mbar_vac.delta_f_[0][1]
         F_solv_dkt = -mbar_solv.d_delta_f_[
             (0, 0)][(1, 1)] + mbar_vac.d_delta_f_[0][1]
-        F_solv = F_solv_kt * kB * T
-        F_solv_error = F_solv_dkt * kB * T
+        F_solv = F_solv_kt * kB * self._T
+        F_solv_error = F_solv_dkt * kB * self._T
 
         return F_solv.value_in_unit(
             unit.kilojoule_per_mole) * 0.239006, F_solv_error.value_in_unit(
@@ -523,16 +522,23 @@ import sys
 if __name__ == "__main__":
 
 
-    base_file_path = "/work/users/r/d/rdey/GBSA_CHECK"
+    base_file_path = "/work/users/r/d/rdey/OBC2_CHECK"
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
     print(f"Current: {name}, {smile}, {expt}")
     start = time.time()
     main = ImplicitSolv(base_file_path, name,
-                        smile, "gbn2")
+                        smile, "obc2")
     main.run_all()
-    res = main.compute_delta_F()
+
+    time_steps = [1,2, 5, 10, 50, 125, 200, 250]
+    res = []
+    for ts in time_steps:
+        res.append(main.compute_delta_F(ts))
+        
+    print(res)
     print(time.time() - start)
-    print(f"{name}, {res}, {expt}")
+    print(f"{name}, {res[0]}, {expt}")
+
     
