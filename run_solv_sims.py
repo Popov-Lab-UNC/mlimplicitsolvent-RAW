@@ -25,7 +25,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
     with open(
         f"output/freesolv_results_{solvent}_{equil_steps}_{freesolv_split}.csv", "w"
     ) as f:
-        f.write("freessolv_index,iupac,delta_F,exp_dG,calc_dG,elapsed_time\n")
+        f.write("freessolv_index,iupac,delta_F,ddF,exp_dG,calc_dG,elapsed_time\n")
 
         for i, row in df.iterrows():
             print(row)
@@ -45,7 +45,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 sim = SolvationSim(lig_file, out_folder, solvent=solvent)
                 sim.equil_steps = equil_steps
                 sim.run_all()
-                delta_F = sim.compute_delta_F()
+                delta_F, ddF = sim.compute_delta_F()
                 elapsed_time = sim.elapsed_time
 
                 print(
@@ -54,7 +54,7 @@ def run_all_sims(solvent, equil_steps, freesolv_split):
                 )
                 print(row)
 
-                f.write(f"{row.idx},\"{row.iupac}\",{delta_F},{row.expt},{row.calc},{elapsed_time}\n")
+                f.write(f"{row.idx},\"{row.iupac}\",{delta_F},{ddF},{row.expt},{row.calc},{elapsed_time}\n")
                 f.flush()
             except KeyboardInterrupt:
                 raise

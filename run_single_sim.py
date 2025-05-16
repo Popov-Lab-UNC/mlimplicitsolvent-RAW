@@ -25,8 +25,8 @@ if __name__ == "__main__":
         json.dump({
             "solv_G": float(solv_G),
             "solv_dG_solv": float(sim.solv_dF),
-            "solv_ddG_solv": float(sim.solv_ddG),
-            "solv_dG_vac": float(sim.solv_dG_vac),
-            "solv_ddG_vac": float(sim.solv_ddG_vac),
+            "solv_ddG_solv": float(sim.solv_ddF),
+            "solv_dG_vac": float(sim.vac_dF),
+            "solv_ddG_vac": float(sim.vac_ddF),
             "elapsed_time": sim.elapsed_time,
         }, f)

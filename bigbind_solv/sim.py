@@ -96,7 +96,7 @@ class SolvationSim:
             lig_file,
             **solv_kwargs,
         )
-        system_vac = get_lr_complex(None, lig_file,**vac_kwargs)
+        system_vac = get_lr_complex(None, lig_file, **vac_kwargs)
         system.save(os.path.join(out_folder, "system"))
         system_vac.save(os.path.join(out_folder, "system_vac"))
 
@@ -150,7 +150,7 @@ class SolvationSim:
         ]
 
         self.equil_steps = 25000
-        self.elapsed_time = 0 # will populate this after running the simulation
+        self.elapsed_time = 0  # will populate this after running the simulation
 
     def minimize(self):
         cache_file = os.path.join(self.out_folder, "minimized.pkl")
@@ -195,12 +195,11 @@ class SolvationSim:
         simulation.step(n_steps)
 
         elapsed_time = time.time() - cur_time
-    
+
         with open(out_com, "w") as f:
             f.write(f"{elapsed_time}")
 
         return elapsed_time
-
 
     def get_vac_u_nk(self, lambda_elec, T=300 * unit.kelvin):
         """Returns the u_nk dataframe for the vacuum simulation
@@ -366,7 +365,9 @@ class SolvationSim:
         lambda_ster = 1.0
         for lambda_elec in reversed(self.electrostatics_schedule):
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.elapsed_time += self.simulate(self.equil_steps, lambda_ster, lambda_elec)
+            self.elapsed_time += self.simulate(
+                self.equil_steps, lambda_ster, lambda_elec
+            )
 
         print("Removing sterics")
         lambda_elec = 0.0
@@ -375,7 +376,9 @@ class SolvationSim:
                 continue
 
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.elapsed_time += self.simulate(self.equil_steps, lambda_ster, lambda_elec)
+            self.elapsed_time += self.simulate(
+                self.equil_steps, lambda_ster, lambda_elec
+            )
 
         print("Re-adding electrostatics in vacuum")
         lambda_ster = 0.0
@@ -383,7 +386,9 @@ class SolvationSim:
         self.system_vac.set_positions(lig_pos)
         for lambda_elec in self.electrostatics_schedule:
             print(f"Running {lambda_ster=}, {lambda_elec=}")
-            self.elapsed_time += self.simulate(self.equil_steps, lambda_ster, lambda_elec, vacuum=True)
+            self.elapsed_time += self.simulate(
+                self.equil_steps, lambda_ster, lambda_elec, vacuum=True
+            )
 
     def compute_delta_F(self):
         """Compute the solvation free energy using MBAR"""
@@ -401,9 +406,19 @@ class SolvationSim:
         F_solv_kt = mbar_vac.delta_f_[0][1] - mbar_solv.delta_f_[(0, 0)][(1, 1)]
         F_solv = F_solv_kt * T * kB
 
-        self.vac_dF = mbar_vac.delta_f_[0][1].value_in_unit(unit.kilocalories_per_mole)
-        self.vac_ddF = mbar_vac.d_delta_f_[0][1].value_in_unit(unit.kilocalories_per_mole)
-        self.solv_dF = mbar_solv.delta_f_[(0, 0)][(1, 1)].value_in_unit(unit.kilocalories_per_mole)
-        self.solv_ddF = mbar_solv.d_delta_f_[(0, 0)][(1, 1)].value_in_unit(unit.kilocalories_per_mole)
+        self.vac_dF = (mbar_vac.delta_f_[0][1] * T * kB).value_in_unit(
+            unit.kilocalories_per_mole
+        )
+        self.vac_ddF = (mbar_vac.d_delta_f_[0][1] * T * kB).value_in_unit(
+            unit.kilocalories_per_mole
+        )
+        self.solv_dF = (mbar_solv.delta_f_[(0, 0)][(1, 1)] * T * kB).value_in_unit(
+            unit.kilocalories_per_mole
+        )
+        self.solv_ddF = (mbar_solv.d_delta_f_[(0, 0)][(1, 1)] * T * kB).value_in_unit(
+            unit.kilocalories_per_mole
+        )
 
-        return F_solv.value_in_unit(unit.kilocalories_per_mole)
+        ddF = self.vac_ddF + self.solv_ddF
+
+        return F_solv.value_in_unit(unit.kilocalories_per_mole), ddF
