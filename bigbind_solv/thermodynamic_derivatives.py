@@ -179,13 +179,12 @@ class ImplicitSolv:
     def __init__(self, base_path, name, smile, solvent):
         self._T = 300 * unit.kelvin
         self.platform = Platform.getPlatformByName("CUDA")
-        self.electrostatics = [0.0, 0.2, 0.4, 0.6, 0.7, 0.8, 1.0]
+        self.electrostatics = [0.0, 0.5, 1.0]
         self.sterics = [
-            0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8,
-            0.85, 0.9, 1.0
+            0.0, 1.0
         ]
         self.name = name
-        self.n_steps = 250000
+        self.n_steps = 10000
         self.report_interval = 1000
         self.compound_state, self.compound_state_vac, self.system, self.system_vac = self.createCompoundStates(
             base_path, smile, name, solvent)
@@ -351,7 +350,7 @@ class ImplicitSolv:
         return u
     
 
-    def get_vac_u_nk(self, ts):
+    def get_vac_u_nk(self):
         cache_path = os.path.join(self.name_path, f"{self.name}_vac_u_nk.pkl")
         '''
         if os.path.exists(cache_path):
@@ -369,10 +368,8 @@ class ImplicitSolv:
                 f"{self.name}_{lambda_elec}_vac_u_nk.pkl")
             if os.path.exists(indiv_path):
                 df = pd.read_pickle(indiv_path)
-                df = df.iloc[:ts]
                 df = self.u_nk_processing_df(df)
                 vac_u_nk_df.append(df)
-                continue
             file_name = os.path.join(
             self.name_path, f"{self.name}_vac_{lambda_elec}_0.0")
             file_name += ".h5"
@@ -418,7 +415,7 @@ class ImplicitSolv:
             
 
 
-    def get_solv_u_nk(self, ts):
+    def get_solv_u_nk(self):
 
         cache_path = os.path.join(self.name_path, f"{self.name}_u_nk.pkl")
 
@@ -439,12 +436,9 @@ class ImplicitSolv:
                 f"{self.name}_{lambda_elec}_{lambda_ster}_u_nk.pkl")
             if os.path.exists(indiv_path):
                 df = pd.read_pickle(indiv_path)
-                df = df.iloc[:ts]
                 df = self.u_nk_processing_df(df)
                 solv_u_nk_df.append(df)
                 continue
-            else:
-                quit()
             file_name = os.path.join(
                 self.name_path, f"{self.name}_{lambda_elec}_{lambda_ster}")
             file_name += ".h5"
@@ -490,10 +484,10 @@ class ImplicitSolv:
         df = alchemlyb.preprocessing.decorrelate_u_nk(df, remove_burnin=True)
         return df
 
-    def compute_delta_F(self, ts):
+    def compute_delta_F(self):
         """ Compute the solvation free energy using MBAR """
-        u_nk_vac = self.get_vac_u_nk(ts)
-        u_nk_solv = self.get_solv_u_nk(ts)
+        u_nk_vac = self.get_vac_u_nk()
+        u_nk_solv = self.get_solv_u_nk()
 
         mbar_vac = MBAR()
         mbar_vac.fit(u_nk_vac)
@@ -522,7 +516,7 @@ import sys
 if __name__ == "__main__":
 
 
-    base_file_path = "/work/users/r/d/rdey/OBC2_CHECK"
+    base_file_path = "/work/users/r/d/rdey/FINAL_OBC2"
     smile = str(sys.argv[1])
     expt = float(sys.argv[2])
     name = str(sys.argv[3])
@@ -531,14 +525,8 @@ if __name__ == "__main__":
     main = ImplicitSolv(base_file_path, name,
                         smile, "obc2")
     main.run_all()
-
-    time_steps = [1,2, 5, 10, 50, 125, 200, 250]
-    res = []
-    for ts in time_steps:
-        res.append(main.compute_delta_F(ts))
-        
-    print(res)
+    res = main.compute_delta_F()
     print(time.time() - start)
-    print(f"{name}, {res[0]}, {expt}")
+    print(f"{name}, {res}, {expt}")
 
-    
+        
