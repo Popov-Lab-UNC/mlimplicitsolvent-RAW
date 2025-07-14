@@ -232,8 +232,6 @@ class AI_Solvation_calc:
                                 torch.tensor(1.0).to(self.device), True, batch, None)
 
             self.curr_simulation_vac.context.setPositions(coords)
-            self.curr_simulation_vac.minimizeEnergy()
-
             U = self.curr_simulation_vac.context.getState(
                 getEnergy=True).getPotentialEnergy()
             val = (U +
@@ -241,7 +239,7 @@ class AI_Solvation_calc:
             u[idx] = float(val)
         return u
 
-    def u_nk_processing_df(self, df):
+    def u_nk_processing_df(self, df): 
         df.attrs = {
             "temperature": self._T,
             "energy_unit": "kT",
